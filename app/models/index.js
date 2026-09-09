@@ -29,4 +29,16 @@ const db = {};
 db.Sequelize = Sequelize;
 db.sequelize = sequelize;
 
+db.categorias = require("./categoria.model.js")(sequelize, Sequelize);
+db.categorias.rawAttributes.id.field = "id_categoria";
+
+db.categorias.belongsTo(db.categorias, {
+  as: "categoriaPadre",
+  foreignKey: "id_categoria_padre"
+});
+db.categorias.hasMany(db.categorias, {
+  as: "subcategorias",
+  foreignKey: "id_categoria_padre"
+});
+
 module.exports = db;
