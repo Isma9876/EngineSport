@@ -41,4 +41,28 @@ db.categorias.hasMany(db.categorias, {
   foreignKey: "id_categoria_padre"
 });
 
+db.proveedores = require("./proveedor.model.js")(sequelize, Sequelize);
+db.proveedores.rawAttributes.id.field = "id_proveedor";
+
+db.productos = require("./producto.model.js")(sequelize, Sequelize);
+db.productos.rawAttributes.id.field = "id_producto";
+
+db.productos.belongsTo(db.categorias, {
+  as: "categoria",
+  foreignKey: "id_categoria"
+});
+db.categorias.hasMany(db.productos, {
+  as: "productos",
+  foreignKey: "id_categoria"
+});
+
+db.productos.belongsTo(db.proveedores, {
+  as: "proveedor",
+  foreignKey: "id_proveedor"
+});
+db.proveedores.hasMany(db.productos, {
+  as: "productos",
+  foreignKey: "id_proveedor"
+});
+
 module.exports = db;
