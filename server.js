@@ -24,7 +24,8 @@ db.sequelize
 
 // Rutas
 require("./app/routes/producto.route.js")(app);
-
+require("./app/routes/categoria.route.js")(app);
+require("./app/routes/proveedor.route.js")(app);
 // Ruta simple de prueba
 app.get("/", (req, res) => {
   res.json({
