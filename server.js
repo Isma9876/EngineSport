@@ -1,7 +1,4 @@
 // server.js
-
-// IMPORTANTE: dotenv debe cargarse ANTES que cualquier require que dependa de process.env
-// (por eso "./app/models" se importa después de esta línea)
 const dotenv = require("dotenv");
 const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env.development";
 dotenv.config({ path: envFile });
@@ -16,7 +13,6 @@ app.use(express.json());
 
 const db = require("./app/models");
 
-// Probamos la conexión a la base de datos (sin crear tablas todavía, solo verificar que conecta)
 db.sequelize
   .sync()
   .then(() => {
@@ -25,6 +21,9 @@ db.sequelize
   .catch((err) => {
     console.error("❌ Error al sincronizar la base de datos:", err.message);
   });
+
+// Rutas
+require("./app/routes/producto.route.js")(app);
 
 // Ruta simple de prueba
 app.get("/", (req, res) => {
