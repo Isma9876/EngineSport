@@ -7,8 +7,38 @@ exports.create = async (req, res) => {
   try {
     const { sku, nombre, descripcion, precio_costo, precio_venta, stock, stock_minimo, id_categoria, id_proveedor } = req.body;
 
-    if (!sku || !nombre || !precio_costo || !precio_venta) {
+    // 1. Campos obligatorios
+    if (!sku || !nombre || precio_costo === undefined || precio_venta === undefined) {
       return res.status(400).json({ message: "sku, nombre, precio_costo y precio_venta son obligatorios." });
+    }
+
+    // 2. Ningún valor numérico puede ser negativo
+    const valoresNumericos = { precio_costo, precio_venta, stock: stock || 0, stock_minimo: stock_minimo || 0 };
+    for (const [campo, valor] of Object.entries(valoresNumericos)) {
+      if (valor < 0) {
+        return res.status(400).json({ message: `El campo ${campo} no puede ser negativo.` });
+      }
+    }
+
+    // 3. El precio de venta debe ser mayor al precio de costo
+    if (Number(precio_venta) <= Number(precio_costo)) {
+      return res.status(400).json({ message: "El precio_venta debe ser mayor que el precio_costo." });
+    }
+
+    // 4. Si mandan id_categoria, debe existir
+    if (id_categoria) {
+      const categoriaExiste = await db.categorias.findByPk(id_categoria);
+      if (!categoriaExiste) {
+        return res.status(400).json({ message: `No existe una categoría con id ${id_categoria}.` });
+      }
+    }
+
+    // 5. Si mandan id_proveedor, debe existir
+    if (id_proveedor) {
+      const proveedorExiste = await db.proveedores.findByPk(id_proveedor);
+      if (!proveedorExiste) {
+        return res.status(400).json({ message: `No existe un proveedor con id ${id_proveedor}.` });
+      }
     }
 
     const nuevoProducto = await Producto.create({
