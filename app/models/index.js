@@ -29,6 +29,52 @@ const db = {};
 db.Sequelize = Sequelize;
 db.sequelize = sequelize;
 
+// ===== Usuarios / Clientes / Empleados (Alexis) =====
+
+db.usuarios = require("./usuario.model.js")(sequelize, Sequelize);
+db.usuarios.rawAttributes.id.field = "id_usuario";
+
+db.clientes = require("./cliente.model.js")(sequelize, Sequelize);
+db.clientes.rawAttributes.id.field = "id_cliente";
+
+db.direccionesCliente = require("./direccionCliente.model.js")(sequelize, Sequelize);
+db.direccionesCliente.rawAttributes.id.field = "id_direccion";
+
+db.empleados = require("./empleado.model.js")(sequelize, Sequelize);
+db.empleados.rawAttributes.id.field = "id_empleado";
+
+// cliente 1-a-1 usuario
+db.clientes.belongsTo(db.usuarios, {
+  as: "usuario",
+  foreignKey: { name: "id_usuario", allowNull: false, unique: true }
+});
+db.usuarios.hasOne(db.clientes, {
+  as: "cliente",
+  foreignKey: "id_usuario"
+});
+
+// empleado 1-a-1 usuario
+db.empleados.belongsTo(db.usuarios, {
+  as: "usuario",
+  foreignKey: { name: "id_usuario", allowNull: false, unique: true }
+});
+db.usuarios.hasOne(db.empleados, {
+  as: "empleado",
+  foreignKey: "id_usuario"
+});
+
+// direccion_cliente 1-a-muchos cliente
+db.direccionesCliente.belongsTo(db.clientes, {
+  as: "cliente",
+  foreignKey: { name: "id_cliente", allowNull: false }
+});
+db.clientes.hasMany(db.direccionesCliente, {
+  as: "direcciones",
+  foreignKey: "id_cliente"
+});
+
+// ===== Catálogo (Isma) =====
+
 db.categorias = require("./categoria.model.js")(sequelize, Sequelize);
 db.categorias.rawAttributes.id.field = "id_categoria";
 
