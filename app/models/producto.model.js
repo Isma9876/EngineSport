@@ -1,52 +1,46 @@
 // app/models/producto.model.js
-module.exports = (sequelize, DataTypes) => {
+module.exports = (sequelize, Sequelize) => {
   const Producto = sequelize.define(
-    "productos",
+    "producto",
     {
-      id_producto: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
       sku: {
-        type: DataTypes.STRING(50),
-        allowNull: true,
+        type: Sequelize.STRING,
+        allowNull: false,
+        unique: true
       },
       nombre: {
-        type: DataTypes.STRING(150),
-        allowNull: false,
+        type: Sequelize.STRING,
+        allowNull: false
       },
       descripcion: {
-        type: DataTypes.TEXT,
-        allowNull: true,
+        type: Sequelize.TEXT
       },
       precio_costo: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: true,
+        type: Sequelize.DECIMAL(10, 2),
+        allowNull: false
       },
       precio_venta: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
+        type: Sequelize.DECIMAL(10, 2),
+        allowNull: false
       },
       stock: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: false,
-        defaultValue: 0,
+        defaultValue: 0
       },
       stock_minimo: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: false,
-        defaultValue: 5,
+        defaultValue: 0
       },
       activo: {
-        type: DataTypes.BOOLEAN,
+        type: Sequelize.BOOLEAN,
         allowNull: false,
-        defaultValue: true,
-      },
+        defaultValue: true
+      }
     },
     {
-      tableName: "productos",
-      timestamps: false,
+      tableName: "productos"
     }
   );
 

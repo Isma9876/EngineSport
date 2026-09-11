@@ -22,26 +22,30 @@ app.use(express.json());
 
 const db = require("./app/models");
 
-// Probamos la conexión a la base de datos
 db.sequelize
   .sync()
   .then(() => {
-    console.log("✅ Conexión exitosa y tablas sincronizadas con la base de datos (Neon).");
+    console.log("Conexión exitosa y tablas sincronizadas con la base de datos (Neon).");
   })
   .catch((err) => {
-    console.error("❌ Error al sincronizar la base de datos:", err.message);
+    console.error("Error al sincronizar la base de datos:", err.message);
   });
 
+// Rutas
+require("./app/routes/producto.route.js")(app);
+require("./app/routes/categoria.route.js")(app);
+require("./app/routes/proveedor.route.js")(app);
+require("./app/routes/pedido.route.js")(app);
+require("./app/routes/pago.route.js")(app);
+require("./app/routes/reporte.route.js")(app);
+
+// Ruta simple de prueba
 app.get("/", (req, res) => {
   res.json({
     message: "EngineSport API",
     ambiente: process.env.NODE_ENV || "development"
   });
 });
-
-require("./app/routes/pedido.route.js")(app);
-require("./app/routes/pago.route.js")(app);
-require("./app/routes/reporte.route.js")(app);
 
 const PORT = process.env.PORT || 8081;
 app.listen(PORT, () => {

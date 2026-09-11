@@ -41,7 +41,29 @@ db.categorias.hasMany(db.categorias, {
   foreignKey: "id_categoria_padre"
 });
 
+db.proveedores = require("./proveedor.model.js")(sequelize, Sequelize);
+db.proveedores.rawAttributes.id.field = "id_proveedor";
+
 db.productos = require("./producto.model.js")(sequelize, Sequelize);
+db.productos.rawAttributes.id.field = "id_producto";
+
+db.productos.belongsTo(db.categorias, {
+  as: "categoria",
+  foreignKey: "id_categoria"
+});
+db.categorias.hasMany(db.productos, {
+  as: "productos",
+  foreignKey: "id_categoria"
+});
+
+db.productos.belongsTo(db.proveedores, {
+  as: "proveedor",
+  foreignKey: "id_proveedor"
+});
+db.proveedores.hasMany(db.productos, {
+  as: "productos",
+  foreignKey: "id_proveedor"
+});
 
 // === Ventas (Persona C) ===
 db.pedidos = require("./pedido.model.js")(sequelize, Sequelize);
@@ -49,23 +71,23 @@ db.detallePedidos = require("./detallePedido.model.js")(sequelize, Sequelize);
 db.pagos = require("./pago.model.js")(sequelize, Sequelize);
 db.movimientosInventario = require("./movimientoInventario.model.js")(sequelize, Sequelize);
 
-// pedidos 1—N detalle_pedidos
+// pedidos 1-N detalle_pedidos
 db.pedidos.hasMany(db.detallePedidos, { foreignKey: "id_pedido", as: "detalles" });
 db.detallePedidos.belongsTo(db.pedidos, { foreignKey: "id_pedido" });
 
-// pedidos 1—1 pagos
+// pedidos 1-1 pagos
 db.pedidos.hasOne(db.pagos, { foreignKey: "id_pedido" });
 db.pagos.belongsTo(db.pedidos, { foreignKey: "id_pedido" });
 
-// pedidos 1—N movimientos_inventario (nullable)
+// pedidos 1-N movimientos_inventario (nullable)
 db.pedidos.hasMany(db.movimientosInventario, { foreignKey: "id_pedido" });
 db.movimientosInventario.belongsTo(db.pedidos, { foreignKey: "id_pedido" });
 
-// productos 1—N detalle_pedidos (usa el cascarón temporal por ahora)
+// productos 1-N detalle_pedidos
 db.productos.hasMany(db.detallePedidos, { foreignKey: "id_producto" });
 db.detallePedidos.belongsTo(db.productos, { foreignKey: "id_producto" });
 
-// productos 1—N movimientos_inventario (usa el cascarón temporal por ahora)
+// productos 1-N movimientos_inventario
 db.productos.hasMany(db.movimientosInventario, { foreignKey: "id_producto" });
 db.movimientosInventario.belongsTo(db.productos, { foreignKey: "id_producto" });
 
