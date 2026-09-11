@@ -1,7 +1,5 @@
 // server.js
 
-// IMPORTANTE: dotenv debe cargarse ANTES que cualquier require que dependa de process.env
-// (por eso "./app/models" se importa después de esta línea)
 const dotenv = require("dotenv");
 const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env.development";
 dotenv.config({ path: envFile });
@@ -12,11 +10,19 @@ const cors = require("cors");
 const app = express();
 
 app.use(cors());
+
+const pagoController = require("./app/controllers/pago.controller.js");
+app.post(
+  "/api/pagos/webhook",
+  express.raw({ type: "application/json" }),
+  pagoController.webhookStripe
+);
+
 app.use(express.json());
 
 const db = require("./app/models");
 
-// Probamos la conexión a la base de datos (sin crear tablas todavía, solo verificar que conecta)
+// Probamos la conexión a la base de datos
 db.sequelize
   .sync()
   .then(() => {
@@ -26,13 +32,16 @@ db.sequelize
     console.error("❌ Error al sincronizar la base de datos:", err.message);
   });
 
-// Ruta simple de prueba
 app.get("/", (req, res) => {
   res.json({
     message: "EngineSport API",
     ambiente: process.env.NODE_ENV || "development"
   });
 });
+
+require("./app/routes/pedido.route.js")(app);
+require("./app/routes/pago.route.js")(app);
+require("./app/routes/reporte.route.js")(app);
 
 const PORT = process.env.PORT || 8081;
 app.listen(PORT, () => {
