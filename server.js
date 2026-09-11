@@ -1,4 +1,5 @@
 // server.js
+
 const dotenv = require("dotenv");
 const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env.development";
 dotenv.config({ path: envFile });
@@ -9,6 +10,14 @@ const cors = require("cors");
 const app = express();
 
 app.use(cors());
+
+const pagoController = require("./app/controllers/pago.controller.js");
+app.post(
+  "/api/pagos/webhook",
+  express.raw({ type: "application/json" }),
+  pagoController.webhookStripe
+);
+
 app.use(express.json());
 
 const db = require("./app/models");
@@ -16,10 +25,10 @@ const db = require("./app/models");
 db.sequelize
   .sync()
   .then(() => {
-    console.log("✅ Conexión exitosa y tablas sincronizadas con la base de datos (Neon).");
+    console.log("Conexión exitosa y tablas sincronizadas con la base de datos (Neon).");
   })
   .catch((err) => {
-    console.error("❌ Error al sincronizar la base de datos:", err.message);
+    console.error("Error al sincronizar la base de datos:", err.message);
   });
 
 // Rutas
@@ -30,6 +39,10 @@ require("./app/routes/auth.route.js")(app);
 require("./app/routes/cliente.route.js")(app);
 require("./app/routes/direccionCliente.route.js")(app);
 require("./app/routes/empleado.route.js")(app);
+require("./app/routes/pedido.route.js")(app);
+require("./app/routes/pago.route.js")(app);
+require("./app/routes/reporte.route.js")(app);
+
 // Ruta simple de prueba
 app.get("/", (req, res) => {
   res.json({
