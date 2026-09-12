@@ -1,4 +1,3 @@
-// app/controllers/pedido.controller.js
 const db = require("../models");
 const Pedido = db.pedidos;
 const DetallePedido = db.detallePedidos;
@@ -6,9 +5,10 @@ const Producto = db.productos;
 const MovimientoInventario = db.movimientosInventario;
 const sequelize = db.sequelize;
 
-const IMPUESTO_RATE = 0.12;
+const IMPUESTO_RATE = 0.12; // IVA Guatemala 12% — ajustar si el equipo decide otro valor
 
 // POST /api/pedidos
+// body: { id_cliente, id_direccion_envio, id_empleado?, items: [{ id_producto, cantidad }] }
 exports.crearPedido = async (req, res) => {
   const { id_cliente, id_direccion_envio, id_empleado, items } = req.body;
 
@@ -47,13 +47,16 @@ exports.crearPedido = async (req, res) => {
       subtotal += subtotalItem;
 
       detalles.push({
-      id_producto: producto.id,
-      cantidad: item.cantidad,
-      precio_unitario: precioUnitario,
-      subtotal: subtotalItem,
-    });
+        id_producto: producto.id_producto,
+        cantidad: item.cantidad,
+        precio_unitario: precioUnitario,
+        subtotal: subtotalItem,
+      });
 
-      movimientos.push({ id_producto: producto.id, cantidad: item.cantidad });
+      movimientos.push({
+        id_producto: producto.id_producto,
+        cantidad: item.cantidad,
+      });
 
       producto.stock -= item.cantidad;
       await producto.save({ transaction: t });
@@ -123,7 +126,7 @@ exports.getPedidos = async (req, res) => {
 exports.getPedidoById = async (req, res) => {
   try {
     const pedido = await Pedido.findByPk(req.params.id, {
-      include: [{ model: DetallePedido, as: "detalles" }],
+      include: [{ model: DetallePedido, as: "detalles", include: [Producto] }],
     });
 
     if (!pedido) {
@@ -150,6 +153,8 @@ exports.getPedidosByCliente = async (req, res) => {
   }
 };
 
+// PUT /api/pedidos/:id/estado
+// body: { estado: "pendiente" | "pagado" | "enviado" | "cancelado" }
 exports.actualizarEstadoPedido = async (req, res) => {
   const { estado } = req.body;
   const estadosValidos = ["pendiente", "pagado", "enviado", "cancelado"];
@@ -160,20 +165,25 @@ exports.actualizarEstadoPedido = async (req, res) => {
 
   const t = await sequelize.transaction();
   try {
-    const pedido = await Pedido.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
+    const pedido = await Pedido.findByPk(req.params.id, { transaction: t });
 
     if (!pedido) {
       await t.rollback();
       return res.status(404).json({ message: `Pedido con id=${req.params.id} no encontrado.` });
     }
 
-    // Estado terminal: un pedido cancelado no puede volver a cambiar de estado.
-    if (pedido.estado === "cancelado") {
+    // No se puede cancelar un pedido que ya fue pagado o enviado.
+    // Si el pago ya está completado, cancelar debería hacerse vía reembolso (Stripe refund),
+    // no simplemente cambiando el estado — eso dejaría el dinero cobrado pero el pedido cancelado.
+    if (estado === "cancelado" && ["pagado", "enviado"].includes(pedido.estado)) {
       await t.rollback();
-      return res.status(400).json({ message: "Este pedido ya está cancelado y no puede cambiar de estado." });
+      return res.status(400).json({
+        message: `No se puede cancelar un pedido en estado "${pedido.estado}". Si ya fue pagado, debe procesarse como reembolso.`,
+      });
     }
 
-    if (estado === "cancelado") {
+    // Si se cancela un pedido que aún no había sido cancelado, se restituye el stock
+    if (estado === "cancelado" && pedido.estado !== "cancelado") {
       const detalles = await DetallePedido.findAll({ where: { id_pedido: pedido.id_pedido }, transaction: t });
 
       for (const detalle of detalles) {

@@ -1,12 +1,16 @@
-// app/controllers/pago.controller.js
 const Stripe = require("stripe");
 const db = require("../models");
 const Pedido = db.pedidos;
 const Pago = db.pagos;
+const DetallePedido = db.detallePedidos;
+const Producto = db.productos;
+const MovimientoInventario = db.movimientosInventario;
+const sequelize = db.sequelize;
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // POST /api/pagos/crear-sesion
+// body: { id_pedido }
 exports.crearSesionPago = async (req, res) => {
   const { id_pedido } = req.body;
 
@@ -25,6 +29,7 @@ exports.crearSesionPago = async (req, res) => {
       return res.status(400).json({ message: `El pedido ya no está en estado pendiente (estado actual: ${pedido.estado}).` });
     }
 
+    // Stripe requiere el monto en centavos, sin decimales
     const montoCentavos = Math.round(parseFloat(pedido.total) * 100);
 
     const session = await stripe.checkout.sessions.create({
@@ -45,6 +50,7 @@ exports.crearSesionPago = async (req, res) => {
       cancel_url: `${process.env.FRONTEND_URL}/pago-cancelado?pedido=${pedido.id_pedido}`,
     });
 
+    // Se crea/actualiza el registro de pago en estado "pendiente" con la referencia de Stripe
     const [pago] = await Pago.findOrCreate({
       where: { id_pedido: pedido.id_pedido },
       defaults: {
@@ -70,6 +76,9 @@ exports.crearSesionPago = async (req, res) => {
 };
 
 // POST /api/pagos/webhook
+// IMPORTANTE: esta ruta debe montarse en server.js con express.raw({ type: "application/json" })
+// ANTES del middleware express.json() global, porque Stripe necesita el body crudo para
+// verificar la firma. Ver nota en pago.route.js.
 exports.webhookStripe = async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
@@ -105,11 +114,49 @@ exports.webhookStripe = async (req, res) => {
     if (event.type === "checkout.session.expired" || event.type === "payment_intent.payment_failed") {
       const session = event.data.object;
       const idPedido = session.metadata?.id_pedido;
+
       if (idPedido) {
-        const pago = await Pago.findOne({ where: { id_pedido: idPedido } });
-        if (pago) {
-          pago.estado_pago = "fallido";
-          await pago.save();
+        const t = await sequelize.transaction();
+        try {
+          const pago = await Pago.findOne({ where: { id_pedido: idPedido }, transaction: t });
+          if (pago) {
+            pago.estado_pago = "fallido";
+            await pago.save({ transaction: t });
+          }
+
+          const pedido = await Pedido.findByPk(idPedido, { transaction: t });
+
+          // Solo restituimos stock si el pedido seguía "pendiente" (nunca se pagó de verdad)
+          if (pedido && pedido.estado === "pendiente") {
+            const detalles = await DetallePedido.findAll({ where: { id_pedido: idPedido }, transaction: t });
+
+            for (const detalle of detalles) {
+              const producto = await Producto.findByPk(detalle.id_producto, { transaction: t, lock: t.LOCK.UPDATE });
+              if (producto) {
+                producto.stock += detalle.cantidad;
+                await producto.save({ transaction: t });
+              }
+
+              await MovimientoInventario.create(
+                {
+                  id_producto: detalle.id_producto,
+                  tipo_movimiento: "entrada",
+                  cantidad: detalle.cantidad,
+                  motivo: "ajuste de inventario",
+                  id_pedido: pedido.id_pedido,
+                },
+                { transaction: t }
+              );
+            }
+
+            pedido.estado = "cancelado";
+            await pedido.save({ transaction: t });
+          }
+
+          await t.commit();
+        } catch (innerErr) {
+          await t.rollback();
+          console.error("Error al restituir stock por pago fallido/expirado:", innerErr.message);
         }
       }
     }
@@ -117,25 +164,6 @@ exports.webhookStripe = async (req, res) => {
     return res.status(200).json({ received: true });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Error al procesar el webhook." });
-  }
-};
-
-// GET /api/pagos
-exports.getAllPagos = async (req, res) => {
-  try {
-    const pagos = await Pago.findAll({
-      include: [
-        {
-          model: Pedido,
-          attributes: ["id_pedido", "id_cliente", "estado", "total"],
-        },
-      ],
-      order: [["id_pago", "DESC"]],
-    });
-
-    return res.status(200).json(pagos);
-  } catch (err) {
-    return res.status(500).json({ message: err.message || "Error al obtener el historial de pagos." });
   }
 };
 
