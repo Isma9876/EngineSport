@@ -47,13 +47,13 @@ exports.crearPedido = async (req, res) => {
       subtotal += subtotalItem;
 
       detalles.push({
-        id_producto: producto.id_producto,
-        cantidad: item.cantidad,
-        precio_unitario: precioUnitario,
-        subtotal: subtotalItem,
-      });
+      id_producto: producto.id,
+      cantidad: item.cantidad,
+      precio_unitario: precioUnitario,
+      subtotal: subtotalItem,
+    });
 
-      movimientos.push({ id_producto: producto.id_producto, cantidad: item.cantidad });
+      movimientos.push({ id_producto: producto.id, cantidad: item.cantidad });
 
       producto.stock -= item.cantidad;
       await producto.save({ transaction: t });
