@@ -99,15 +99,51 @@ exports.findOne = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;
-    const [filasActualizadas] = await Producto.update(req.body, {
-      where: { id_producto: id }
-    });
+    const { precio_costo, precio_venta, stock, stock_minimo, id_categoria, id_proveedor } = req.body;
 
-    if (filasActualizadas === 0) {
-      return res.status(404).json({ message: `No se encontró un producto con id ${id}, o no había cambios que aplicar.` });
+    const productoExistente = await Producto.findByPk(id);
+    if (!productoExistente) {
+      return res.status(404).json({ message: `No se encontró un producto con id ${id}.` });
     }
 
-    res.status(200).json({ message: "Producto actualizado correctamente." });
+    // Si cambian precio_costo o precio_venta, comparamos usando el valor nuevo
+    // o el que ya tenía, para no dejar pasar una combinación inválida.
+    const costoFinal = precio_costo !== undefined ? Number(precio_costo) : Number(productoExistente.precio_costo);
+    const ventaFinal = precio_venta !== undefined ? Number(precio_venta) : Number(productoExistente.precio_venta);
+
+    if (ventaFinal <= costoFinal) {
+      return res.status(400).json({ message: "El precio_venta debe ser mayor que el precio_costo." });
+    }
+
+    const valoresNumericos = {
+      precio_costo: costoFinal,
+      precio_venta: ventaFinal,
+      stock: stock !== undefined ? Number(stock) : productoExistente.stock,
+      stock_minimo: stock_minimo !== undefined ? Number(stock_minimo) : productoExistente.stock_minimo
+    };
+    for (const [campo, valor] of Object.entries(valoresNumericos)) {
+      if (valor < 0) {
+        return res.status(400).json({ message: `El campo ${campo} no puede ser negativo.` });
+      }
+    }
+
+    if (id_categoria) {
+      const categoriaExiste = await db.categorias.findByPk(id_categoria);
+      if (!categoriaExiste) {
+        return res.status(400).json({ message: `No existe una categoría con id ${id_categoria}.` });
+      }
+    }
+
+    if (id_proveedor) {
+      const proveedorExiste = await db.proveedores.findByPk(id_proveedor);
+      if (!proveedorExiste) {
+        return res.status(400).json({ message: `No existe un proveedor con id ${id_proveedor}.` });
+      }
+    }
+
+    await productoExistente.update(req.body);
+
+    res.status(200).json({ message: "Producto actualizado correctamente.", producto: productoExistente });
   } catch (error) {
     res.status(500).json({ message: "Error al actualizar el producto.", error: error.message });
   }
