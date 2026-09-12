@@ -181,3 +181,15 @@ exports.getPagoByPedido = async (req, res) => {
     return res.status(500).json({ message: err.message || "Error al obtener el pago." });
   }
 };
+
+// GET /api/pagos
+exports.getAllPagos = async (req, res) => {
+  try {
+    const pagos = await Pago.findAll({
+      order: [["fecha_pago", "DESC"]],
+    });
+    return res.status(200).json(pagos);
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Error al obtener los pagos." });
+  }
+};
