@@ -120,6 +120,25 @@ exports.webhookStripe = async (req, res) => {
   }
 };
 
+// GET /api/pagos
+exports.getAllPagos = async (req, res) => {
+  try {
+    const pagos = await Pago.findAll({
+      include: [
+        {
+          model: Pedido,
+          attributes: ["id_pedido", "id_cliente", "estado", "total"],
+        },
+      ],
+      order: [["id_pago", "DESC"]],
+    });
+
+    return res.status(200).json(pagos);
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Error al obtener el historial de pagos." });
+  }
+};
+
 // GET /api/pagos/pedido/:idPedido
 exports.getPagoByPedido = async (req, res) => {
   try {
