@@ -63,15 +63,29 @@ exports.findOne = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;
-    const [filasActualizadas] = await Categoria.update(req.body, {
-      where: { id_categoria: id }
-    });
+    const { id_categoria_padre } = req.body;
 
-    if (filasActualizadas === 0) {
-      return res.status(404).json({ message: `No se encontró una categoría con id ${id}, o no había cambios que aplicar.` });
+    const categoriaExistente = await Categoria.findByPk(id);
+    if (!categoriaExistente) {
+      return res.status(404).json({ message: `No se encontró una categoría con id ${id}.` });
     }
 
-    res.status(200).json({ message: "Categoría actualizada correctamente." });
+    if (id_categoria_padre !== undefined && id_categoria_padre !== null) {
+      // 1. No puede ser su propio padre
+      if (Number(id_categoria_padre) === Number(id)) {
+        return res.status(400).json({ message: "Una categoría no puede ser su propia categoría padre." });
+      }
+
+      // 2. La categoría padre indicada debe existir
+      const padreExiste = await Categoria.findByPk(id_categoria_padre);
+      if (!padreExiste) {
+        return res.status(400).json({ message: `No existe una categoría con id ${id_categoria_padre}.` });
+      }
+    }
+
+    await categoriaExistente.update(req.body);
+
+    res.status(200).json({ message: "Categoría actualizada correctamente.", categoria: categoriaExistente });
   } catch (error) {
     res.status(500).json({ message: "Error al actualizar la categoría.", error: error.message });
   }
