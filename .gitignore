@@ -3,3 +3,4 @@
 .env.development
 .env.production
 tokenPrueba.js
+comprobante-*.pdf

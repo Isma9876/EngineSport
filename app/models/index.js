@@ -133,6 +133,7 @@ db.pedidos = require("./pedido.model.js")(sequelize, Sequelize);
 db.detallePedidos = require("./detallePedido.model.js")(sequelize, Sequelize);
 db.pagos = require("./pago.model.js")(sequelize, Sequelize);
 db.movimientosInventario = require("./movimientoInventario.model.js")(sequelize, Sequelize);
+db.cupon = require("./cupon.model.js")(sequelize, Sequelize);
 
 // pedidos 1-N detalle_pedidos
 db.pedidos.hasMany(db.detallePedidos, { foreignKey: "id_pedido", as: "detalles" });
@@ -153,5 +154,8 @@ db.detallePedidos.belongsTo(db.productos, { foreignKey: "id_producto" });
 // productos 1-N movimientos_inventario
 db.productos.hasMany(db.movimientosInventario, { foreignKey: "id_producto" });
 db.movimientosInventario.belongsTo(db.productos, { foreignKey: "id_producto" });
+
+db.cupon.hasMany(db.pedidos, { foreignKey: "id_cupon" });
+db.pedidos.belongsTo(db.cupon, { foreignKey: "id_cupon" });
 
 module.exports = db;

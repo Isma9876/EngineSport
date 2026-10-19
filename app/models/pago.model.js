@@ -1,4 +1,3 @@
-// app/models/pago.model.js
 module.exports = (sequelize, DataTypes) => {
   const Pago = sequelize.define(
     "pagos",
@@ -11,6 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       id_pedido: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        unique: true, // un pago por pedido; los reintentos reutilizan el mismo PaymentIntent
       },
       metodo_pago: {
         type: DataTypes.STRING(50),
@@ -32,7 +32,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       referencia_transaccion: {
         type: DataTypes.STRING(255),
-        allowNull: true,
+        allowNull: true, // id del PaymentIntent (pi_...)
       },
     },
     {
