@@ -404,9 +404,12 @@ exports.findOne = async (req, res) => {
 // Actualizar un producto (solo datos del producto; las variantes se editan aparte)
 exports.update = async (req, res) => {
   try {
-    const { id } = req.params;
+        const id = parsePositiveInt(req.params.id, null);
+    if (id === null) {
+      return res.status(400).json({ message: "El id del producto debe ser un entero positivo." });
+    }
     const { nombre, descripcion, marca, precio_costo, precio_venta, id_categoria, id_proveedor, activo } = req.body;
-
+    
     const productoExistente = await Producto.findByPk(id);
     if (!productoExistente) {
       return res.status(404).json({ message: `No se encontró un producto con id ${id}.` });
@@ -485,7 +488,10 @@ exports.update = async (req, res) => {
 // Eliminar un producto (sus variantes se borran con él, salvo que ya tengan ventas o movimientos)
 exports.delete = async (req, res) => {
   try {
-    const { id } = req.params;
+     const id = parsePositiveInt(req.params.id, null);
+    if (id === null) {
+      return res.status(400).json({ message: "El id del producto debe ser un entero positivo." });
+    }
     const filasEliminadas = await Producto.destroy({
       where: { id_producto: id }
     });
