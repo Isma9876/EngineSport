@@ -111,6 +111,23 @@ db.proveedores.hasMany(db.productos, {
   foreignKey: "id_proveedor"
 });
 
+// variantes_producto: un producto tiene muchas variantes
+db.variantes = require("./variante.model.js")(sequelize, Sequelize);
+db.variantes.rawAttributes.id.field = "id_variante";
+
+db.variantes.belongsTo(db.productos, {
+  as: "producto",
+  foreignKey: { name: "id_producto", allowNull: false },
+  onUpdate: "CASCADE",
+  onDelete: "CASCADE"
+});
+db.productos.hasMany(db.variantes, {
+  as: "variantes",
+  foreignKey: { name: "id_producto", allowNull: false },
+  onUpdate: "CASCADE",
+  onDelete: "CASCADE"
+});
+
 // === Ventas (Persona C) ===
 db.pedidos = require("./pedido.model.js")(sequelize, Sequelize);
 db.detallePedidos = require("./detallePedido.model.js")(sequelize, Sequelize);
