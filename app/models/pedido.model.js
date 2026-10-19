@@ -45,6 +45,31 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
+      id_cupon: { 
+        type: DataTypes.INTEGER, 
+        allowNull: true, 
+      },
+      descuento: { 
+        type: DataTypes.DECIMAL(10, 2), 
+        allowNull: false, defaultValue: 0,
+       },
+      numero_guia: { 
+        type: DataTypes.STRING(100), 
+        allowNull: true,
+       },
+      fecha_envio: { 
+        type: DataTypes.DATE, 
+        allowNull: true, 
+      },
+            costo_envio: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
+      transportista: {
+        type: DataTypes.STRING(60),
+        allowNull: true,
+      },
     },
     {
       tableName: "pedidos",
