@@ -42,6 +42,7 @@ require("./app/routes/empleado.route.js")(app);
 require("./app/routes/pedido.route.js")(app);
 require("./app/routes/pago.route.js")(app);
 require("./app/routes/reporte.route.js")(app);
+require("./app/routes/cupon.route")(app);
 
 // Ruta simple de prueba
 app.get("/", (req, res) => {
