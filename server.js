@@ -33,6 +33,7 @@ db.sequelize
 
 // Rutas
 require("./app/routes/producto.route.js")(app);
+require("./app/routes/variante.route.js")(app);
 require("./app/routes/categoria.route.js")(app);
 require("./app/routes/proveedor.route.js")(app);
 require("./app/routes/auth.route.js")(app);
