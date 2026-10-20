@@ -158,4 +158,7 @@ db.movimientosInventario.belongsTo(db.variantes, { as: "variante", foreignKey: "
 db.cupon.hasMany(db.pedidos, { foreignKey: "id_cupon" });
 db.pedidos.belongsTo(db.cupon, { foreignKey: "id_cupon" });
 
+
+
+
 module.exports = db;
