@@ -1,6 +1,20 @@
 BEGIN;
 
 -- =====================================================
+-- BLOQUE 0: si sequelize.sync() ya creó variantes_producto (sin las restricciones
+-- de este script), se elimina solo si está vacía; si tiene datos, se aborta.
+-- =====================================================
+
+DO $$
+BEGIN
+  IF to_regclass('public.variantes_producto') IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM public.variantes_producto) THEN
+      RAISE EXCEPTION 'variantes_producto ya existe y tiene datos. Revisar antes de continuar.';
+    END IF;
+    DROP TABLE public.variantes_producto;
+  END IF;
+END $$;
+-- =====================================================
 -- MIGRACIÓN: Variantes de producto
 -- BLOQUE 1: Crear la tabla variantes_producto
 -- =====================================================
