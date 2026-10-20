@@ -8,6 +8,7 @@
 require("dotenv").config({ path: `.env.${process.env.NODE_ENV || "development"}` });
 const readline = require("node:readline/promises");
 const db = require("./app/models");
+const { registrarStockInicial } = require("./app/services/inventario.service.js");
 
 async function confirmarBase() {
   console.log(`\nBase de datos destino: ${process.env.DB_HOST}`);
@@ -187,14 +188,18 @@ async function seed() {
           transaction: t
         });
 
-        let variantesNuevas = 0;
+                let variantesNuevas = 0;
         for (const v of armarVariantes(p)) {
-          const [, varianteCreada] = await db.variantes.findOrCreate({
+          const [variante, varianteCreada] = await db.variantes.findOrCreate({
             where: { sku: v.sku },
             defaults: { ...v, id_producto: producto.id },
             transaction: t
           });
-          if (varianteCreada) variantesNuevas++;
+          if (varianteCreada) {
+            variantesNuevas++;
+            // Solo las variantes que se crean ahora reciben su entrada de inventario
+            await registrarStockInicial([variante], t);
+          }
         }
 
         console.log(`${creado ? "Creado" : "Ya existía"}: ${producto.nombre} (${variantesNuevas} variantes nuevas)`);

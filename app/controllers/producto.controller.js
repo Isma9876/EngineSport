@@ -3,6 +3,7 @@ const db = require("../models");
 const Producto = db.productos;
 const Variante = db.variantes;
 const { Op } = db.Sequelize;
+const { registrarStockInicial } = require("../services/inventario.service.js");
 
 // Quita espacios sobrantes; si queda vacío devuelve null
 const cleanText = (value) => {
@@ -118,10 +119,13 @@ exports.create = async (req, res) => {
         { transaction: t }
       );
 
-      await Variante.bulkCreate(
+            const variantesCreadas = await Variante.bulkCreate(
         variantesLimpias.map((v) => ({ ...v, id_producto: nuevoProducto.id })),
-        { transaction: t }
+        { transaction: t, returning: true }
       );
+
+      // El stock con el que nace cada variante queda registrado como entrada de inventario
+      await registrarStockInicial(variantesCreadas, t);
 
       return nuevoProducto.id;
     });

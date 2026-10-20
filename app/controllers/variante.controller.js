@@ -3,6 +3,7 @@ const db = require("../models");
 const Producto = db.productos;
 const Variante = db.variantes;
 const { Op } = db.Sequelize;
+const { registrarStockInicial } = require("../services/inventario.service.js");
 
 // Quita espacios sobrantes; si queda vacío devuelve null
 const cleanText = (value) => {
@@ -63,17 +64,28 @@ exports.create = async (req, res) => {
       return res.status(409).json({ message: "Este producto ya tiene una variante con esa combinación de talla y color." });
     }
 
-    const nuevaVariante = await Variante.create({
-      id_producto: idProducto,
-      sku,
-      talla,
-      color,
-      imagen_url: cleanText(req.body.imagen_url),
-      stock: Number(stock),
-      stock_minimo: Number(stockMinimo)
+       // La variante y su movimiento de stock inicial se guardan juntos: si algo falla, no se guarda nada
+    const nuevaVariante = await db.sequelize.transaction(async (t) => {
+      const variante = await Variante.create(
+        {
+          id_producto: idProducto,
+          sku,
+          talla,
+          color,
+          imagen_url: cleanText(req.body.imagen_url),
+          stock: Number(stock),
+          stock_minimo: Number(stockMinimo)
+        },
+        { transaction: t }
+      );
+
+      await registrarStockInicial([variante], t);
+
+      return variante;
     });
 
     res.status(201).json(nuevaVariante);
+    
   } catch (error) {
     if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ message: "Ya existe una variante con ese sku, o con esa combinación de talla y color." });
