@@ -5,7 +5,7 @@ const db = require("../models");
 const Pedido = db.pedidos;
 const Pago = db.pagos;
 const DetallePedido = db.detallePedidos;
-const Producto = db.productos;
+const Variante = db.variantes;
 const MovimientoInventario = db.movimientosInventario;
 const sequelize = db.sequelize;
 
@@ -32,9 +32,9 @@ const cancelarIntentoStripe = async (pago) => {
   }
 };
 
-// Cancela un pedido "pendiente": cancela el intent en Stripe, restituye el stock,
-// registra los movimientos de inventario, devuelve el uso del cupón (si tenía)
-// y deja el pedido en "cancelado".
+// Cancela un pedido "pendiente": cancela el intent en Stripe, restituye el stock
+// de cada variante, registra los movimientos de inventario, devuelve el uso del
+// cupón (si tenía) y deja el pedido en "cancelado".
 // Lo usan la expiración automática y la cancelación manual.
 // Devuelve: "cancelado" | "no_pendiente" | "pago_en_curso"
 const cancelarPedidoPendiente = async (idPedido) => {
@@ -60,20 +60,20 @@ const cancelarPedidoPendiente = async (idPedido) => {
 
     const detalles = await DetallePedido.findAll({
       where: { id_pedido: idPedido },
-      order: [["id_producto", "ASC"]], // orden fijo para evitar deadlocks entre pedidos
+      order: [["id_variante", "ASC"]], // mismo orden que crearPedido: evita deadlocks
       transaction: t,
     });
 
     for (const detalle of detalles) {
-      const producto = await Producto.findByPk(detalle.id_producto, { transaction: t, lock: t.LOCK.UPDATE });
-      if (producto) {
-        producto.stock += detalle.cantidad;
-        await producto.save({ transaction: t });
+      const variante = await Variante.findByPk(detalle.id_variante, { transaction: t, lock: t.LOCK.UPDATE });
+      if (variante) {
+        variante.stock += detalle.cantidad;
+        await variante.save({ transaction: t });
       }
 
       await MovimientoInventario.create(
         {
-          id_producto: detalle.id_producto,
+          id_variante: detalle.id_variante,
           tipo_movimiento: "entrada",
           cantidad: detalle.cantidad,
           motivo: "ajuste de inventario",
@@ -87,7 +87,7 @@ const cancelarPedidoPendiente = async (idPedido) => {
     await pedido.save({ transaction: t });
 
     // El pedido ya no usará el cupón: se devuelve el uso (el orden de bloqueo es
-    // productos -> cupón, igual que en crearPedido, para evitar deadlocks).
+    // variantes -> cupón, igual que en crearPedido, para evitar deadlocks).
     if (pedido.id_cupon) {
       await db.cupon.decrement("usos_actuales", {
         by: 1,

@@ -6,6 +6,7 @@ const PDFDocument = require("pdfkit");
 const Pedido = db.pedidos;
 const DetallePedido = db.detallePedidos;
 const Producto = db.productos;
+const Variante = db.variantes;
 const MovimientoInventario = db.movimientosInventario;
 const DireccionCliente = db.direccionesCliente;
 const sequelize = db.sequelize;
@@ -14,8 +15,23 @@ const IMPUESTO_RATE = 0.12; // IVA Guatemala 12% — ajustar si el equipo decide
 const ENVIO_COSTO = Number(process.env.ENVIO_COSTO) || 0;
 const ENVIO_GRATIS_DESDE = Number(process.env.ENVIO_GRATIS_DESDE) || 0; // 0 = sin envío gratis
 
+// Detalle -> variante (talla, color, sku) -> producto (nombre).
+// No expone precio_costo ni datos del proveedor.
+const incluirVariante = {
+  model: Variante,
+  as: "variante",
+  attributes: ["id", "sku", "talla", "color"],
+  include: [{ model: Producto, as: "producto", attributes: ["id", "nombre"] }],
+};
+
+// "Camiseta running (M, Negro)"
+const describirVariante = (producto, variante) => {
+  const extra = [variante.talla, variante.color].filter(Boolean).join(", ");
+  return extra ? `${producto.nombre} (${extra})` : producto.nombre;
+};
+
 // POST /api/pedidos
-// body: { id_cliente, id_direccion_envio, id_empleado?, codigo_cupon?, items: [{ id_producto, cantidad }] }
+// body: { id_cliente, id_direccion_envio, id_empleado?, codigo_cupon?, items: [{ id_variante, cantidad }] }
 // La ruta ya validó que el cliente autenticado sea el dueño de id_cliente (o un empleado).
 exports.crearPedido = async (req, res) => {
   const { id_cliente, id_direccion_envio, id_empleado, items, codigo_cupon } = req.body;
@@ -41,50 +57,66 @@ exports.crearPedido = async (req, res) => {
       throw { status: 400, message: "La dirección de envío no existe o no pertenece al cliente." };
     }
 
+    // Validar los items y unir los repetidos (la misma variante dos veces suma sus cantidades)
+    const cantidadPorVariante = new Map();
+    for (const item of items) {
+      if (!Number.isInteger(item.id_variante) || !Number.isInteger(item.cantidad) || item.cantidad <= 0) {
+        throw { status: 400, message: "Cada item requiere id_variante y una cantidad entera > 0." };
+      }
+      cantidadPorVariante.set(item.id_variante, (cantidadPorVariante.get(item.id_variante) || 0) + item.cantidad);
+    }
+
+    // Orden fijo por variante para evitar deadlocks entre pedidos simultáneos
+    const itemsOrdenados = [...cantidadPorVariante.entries()]
+      .map(([id_variante, cantidad]) => ({ id_variante, cantidad }))
+      .sort((a, b) => a.id_variante - b.id_variante);
+
     let subtotal = 0;
     const detalles = [];
     const movimientos = [];
 
-    // Orden fijo por producto para evitar deadlocks entre pedidos simultáneos
-    const itemsOrdenados = [...items].sort((a, b) => a.id_producto - b.id_producto);
-
     for (const item of itemsOrdenados) {
-      if (!item.id_producto || !Number.isInteger(item.cantidad) || item.cantidad <= 0) {
-        throw { status: 400, message: "Cada item requiere id_producto y una cantidad entera > 0." };
+      // Se bloquea SOLO la variante (donde vive el stock); el producto se lee aparte para el precio
+      const variante = await Variante.findByPk(item.id_variante, { transaction: t, lock: t.LOCK.UPDATE });
+
+      if (!variante || !variante.activo) {
+        throw { status: 404, message: `La variante ${item.id_variante} no existe o no está activa.` };
       }
 
-      const producto = await Producto.findByPk(item.id_producto, { transaction: t, lock: t.LOCK.UPDATE });
+      const producto = await Producto.findByPk(variante.id_producto, { transaction: t });
 
       if (!producto || !producto.activo) {
-        throw { status: 404, message: `Producto ${item.id_producto} no existe o no está activo.` };
+        throw { status: 404, message: `El producto de la variante ${item.id_variante} no existe o no está activo.` };
       }
 
-      if (producto.stock < item.cantidad) {
+      if (variante.stock < item.cantidad) {
         throw {
           status: 400,
-          message: `Stock insuficiente para "${producto.nombre}". Disponible: ${producto.stock}, solicitado: ${item.cantidad}.`,
+          message: `Stock insuficiente para "${describirVariante(producto, variante)}". Disponible: ${variante.stock}, solicitado: ${item.cantidad}.`,
         };
       }
 
       const precioUnitario = parseFloat(producto.precio_venta);
-      const subtotalItem = precioUnitario * item.cantidad;
+      const subtotalItem = round2(precioUnitario * item.cantidad);
       subtotal += subtotalItem;
 
       detalles.push({
-        id_producto: producto.id,
+        id_variante: variante.id,
         cantidad: item.cantidad,
         precio_unitario: precioUnitario,
         subtotal: subtotalItem,
       });
 
       movimientos.push({
-        id_producto: producto.id,
+        id_variante: variante.id,
         cantidad: item.cantidad,
       });
 
-      producto.stock -= item.cantidad;
-      await producto.save({ transaction: t });
+      variante.stock -= item.cantidad;
+      await variante.save({ transaction: t });
     }
+
+    subtotal = round2(subtotal);
 
     // Mínimo PEDIDO_TOTAL_MINIMO: aplica SOLO con cupón, sobre el total con IVA (sin envío),
     // para que un cupón no deje el total en 0 o negativo. Un pedido sin cupón no tiene
@@ -132,7 +164,7 @@ exports.crearPedido = async (req, res) => {
     for (const m of movimientos) {
       await MovimientoInventario.create(
         {
-          id_producto: m.id_producto,
+          id_variante: m.id_variante,
           tipo_movimiento: "salida",
           cantidad: m.cantidad,
           motivo: "venta",
@@ -170,12 +202,12 @@ exports.getPedidos = async (req, res) => {
 };
 
 // GET /api/pedidos/:id (empleado o dueño del pedido)
-// El producto se limita a id y nombre para no exponer precio_costo ni datos del proveedor.
+// Cada línea trae su variante (talla, color) y el producto con id y nombre.
 exports.getPedidoById = async (req, res) => {
   try {
     const pedido = await Pedido.findByPk(req.params.id, {
       include: [
-        { model: DetallePedido, as: "detalles", include: [{ model: Producto, attributes: ["id", "nombre"] }] },
+        { model: DetallePedido, as: "detalles", include: [incluirVariante] },
         { model: db.pagos, attributes: ["metodo_pago", "monto", "fecha_pago", "estado_pago"] },
       ],
     });
@@ -333,7 +365,7 @@ exports.getMisPedidos = async (req, res) => {
     const { count, rows } = await Pedido.findAndCountAll({
       where,
       include: [
-        { model: DetallePedido, as: "detalles", include: [{ model: Producto, attributes: ["id", "nombre"] }] },
+        { model: DetallePedido, as: "detalles", include: [incluirVariante] },
         { model: db.pagos, attributes: ["metodo_pago", "monto", "fecha_pago", "estado_pago"] },
       ],
       order: [["fecha_pedido", "DESC"]],
@@ -353,13 +385,14 @@ exports.getMisPedidos = async (req, res) => {
     return res.status(500).json({ message: err.message || "Error al obtener tu historial de pedidos." });
   }
 };
+
 // GET /api/pedidos/:id/comprobante (empleado o dueño del pedido)
 // Solo para pedidos pagados o enviados. Las consultas se hacen antes de abrir el PDF,
 // porque una vez que se empieza a escribir la respuesta ya no se puede devolver JSON de error.
 exports.getComprobante = async (req, res) => {
   try {
     const pedido = await Pedido.findByPk(req.params.id, {
-      include: [{ model: DetallePedido, as: "detalles", include: [{ model: Producto, attributes: ["id", "nombre"] }] }],
+      include: [{ model: DetallePedido, as: "detalles", include: [incluirVariante] }],
     });
 
     if (!pedido) {
@@ -422,7 +455,9 @@ exports.getComprobante = async (req, res) => {
         doc.addPage();
         y = 50;
       }
-      doc.text(d.producto?.nombre || `Producto ${d.id_producto}`, xNombre, y, { width: 260 });
+      const v = d.variante;
+      const nombre = v?.producto ? describirVariante(v.producto, v) : `Variante ${d.id_variante}`;
+      doc.text(nombre, xNombre, y, { width: 260 });
       doc.text(String(d.cantidad), xCant, y);
       doc.text(q(d.precio_unitario), xPrecio, y);
       doc.text(q(d.subtotal), xSub, y);
