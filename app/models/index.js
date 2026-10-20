@@ -147,13 +147,13 @@ db.pagos.belongsTo(db.pedidos, { foreignKey: "id_pedido" });
 db.pedidos.hasMany(db.movimientosInventario, { foreignKey: "id_pedido" });
 db.movimientosInventario.belongsTo(db.pedidos, { foreignKey: "id_pedido" });
 
-// productos 1-N detalle_pedidos
-db.productos.hasMany(db.detallePedidos, { foreignKey: "id_producto" });
-db.detallePedidos.belongsTo(db.productos, { foreignKey: "id_producto" });
+// variantes 1-N detalle_pedidos
+db.variantes.hasMany(db.detallePedidos, { foreignKey: "id_variante", onUpdate: "CASCADE", onDelete: "RESTRICT" });
+db.detallePedidos.belongsTo(db.variantes, { as: "variante", foreignKey: "id_variante" });
 
-// productos 1-N movimientos_inventario
-db.productos.hasMany(db.movimientosInventario, { foreignKey: "id_producto" });
-db.movimientosInventario.belongsTo(db.productos, { foreignKey: "id_producto" });
+// variantes 1-N movimientos_inventario
+db.variantes.hasMany(db.movimientosInventario, { foreignKey: "id_variante", onUpdate: "CASCADE", onDelete: "RESTRICT" });
+db.movimientosInventario.belongsTo(db.variantes, { as: "variante", foreignKey: "id_variante" });
 
 db.cupon.hasMany(db.pedidos, { foreignKey: "id_cupon" });
 db.pedidos.belongsTo(db.cupon, { foreignKey: "id_cupon" });
