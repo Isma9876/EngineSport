@@ -36,8 +36,10 @@ const cancelarIntentoStripe = async (pago) => {
 // de cada variante, registra los movimientos de inventario, devuelve el uso del
 // cupón (si tenía) y deja el pedido en "cancelado".
 // Lo usan la expiración automática y la cancelación manual.
+// `motivo` queda en movimientos_inventario para distinguirlos en los reportes:
+// por defecto "cancelación de pedido"; la expiración pasa "expiración de reserva".
 // Devuelve: "cancelado" | "no_pendiente" | "pago_en_curso"
-const cancelarPedidoPendiente = async (idPedido) => {
+const cancelarPedidoPendiente = async (idPedido, motivo = "cancelación de pedido") => {
   const pedidoActual = await Pedido.findByPk(idPedido);
   if (!pedidoActual || pedidoActual.estado !== "pendiente") return "no_pendiente";
 
@@ -76,7 +78,7 @@ const cancelarPedidoPendiente = async (idPedido) => {
           id_variante: detalle.id_variante,
           tipo_movimiento: "entrada",
           cantidad: detalle.cantidad,
-          motivo: "ajuste de inventario",
+          motivo,
           id_pedido: pedido.id_pedido,
         },
         { transaction: t }
@@ -125,7 +127,7 @@ const expirarPedidosVencidos = async ({ limite = 20 } = {}) => {
   let expirados = 0;
   for (const p of vencidos) {
     try {
-      if ((await cancelarPedidoPendiente(p.id_pedido)) === "cancelado") expirados++;
+      if ((await cancelarPedidoPendiente(p.id_pedido, "expiración de reserva")) === "cancelado") expirados++;
     } catch (err) {
       console.error(`No se pudo expirar el pedido ${p.id_pedido}:`, err.message);
     }
