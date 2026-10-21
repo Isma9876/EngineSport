@@ -11,9 +11,9 @@ const MovimientoInventario = db.movimientosInventario;
 const DireccionCliente = db.direccionesCliente;
 const sequelize = db.sequelize;
 
-const IMPUESTO_RATE = 0.12; // IVA Guatemala 12% — ajustar si el equipo decide otro valor
-const ENVIO_COSTO = Number(process.env.ENVIO_COSTO) || 0;
-const ENVIO_GRATIS_DESDE = Number(process.env.ENVIO_GRATIS_DESDE) || 0; // 0 = sin envío gratis
+const { IMPUESTO_RATE, calcularTotales } = require("../services/totales.service.js");
+const Carrito = db.carritos;
+const DetalleCarrito = db.detalleCarrito;
 
 // Detalle -> variante (talla, color, sku) -> producto (nombre).
 // No expone precio_costo ni datos del proveedor.
@@ -34,7 +34,7 @@ const describirVariante = (producto, variante) => {
 // body: { id_cliente, id_direccion_envio, id_empleado?, codigo_cupon?, items: [{ id_variante, cantidad }] }
 // La ruta ya validó que el cliente autenticado sea el dueño de id_cliente (o un empleado).
 exports.crearPedido = async (req, res) => {
-  const { id_cliente, id_direccion_envio, id_empleado, items, codigo_cupon } = req.body;
+const { id_cliente, id_direccion_envio, id_empleado, items, codigo_cupon, desde_carrito } = req.body;
 
   if (!id_cliente || !id_direccion_envio || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({
@@ -132,11 +132,7 @@ exports.crearPedido = async (req, res) => {
       await r.cupon.increment("usos_actuales", { transaction: t });
     }
 
-    const base = round2(subtotal - descuento);
-    const impuestos = round2(base * IMPUESTO_RATE);
-    // Envío: tarifa fija sin IVA; gratis si (subtotal - descuento) alcanza el umbral
-    const costoEnvio = ENVIO_GRATIS_DESDE > 0 && base >= ENVIO_GRATIS_DESDE ? 0 : ENVIO_COSTO;
-    const total = round2(base + impuestos + costoEnvio);
+    const { impuestos, costoEnvio, total } = calcularTotales({ subtotal, descuento });
 
     // id_empleado solo lo puede indicar un empleado; un cliente no puede atribuirlo
     const idEmpleadoConfirma = req.usuario.tipo === "empleado" ? id_empleado || null : null;
@@ -174,6 +170,17 @@ exports.crearPedido = async (req, res) => {
       );
     }
 
+        // Compra hecha desde el carrito: se quitan solo las variantes compradas (misma transacción)
+    if (desde_carrito === true) {
+      const carrito = await Carrito.findOne({ where: { id_cliente }, transaction: t });
+      if (carrito) {
+        await DetalleCarrito.destroy({
+          where: { id_carrito: carrito.id_carrito, id_variante: itemsOrdenados.map((i) => i.id_variante) },
+          transaction: t,
+        });
+      }
+    }
+    
     await t.commit();
 
     const pedidoCompleto = await Pedido.findByPk(pedido.id_pedido, {

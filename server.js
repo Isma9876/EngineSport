@@ -41,6 +41,7 @@ require("./app/routes/cliente.route.js")(app);
 require("./app/routes/direccionCliente.route.js")(app);
 require("./app/routes/empleado.route.js")(app);
 require("./app/routes/pedido.route.js")(app);
+require("./app/routes/carrito.route.js")(app);
 require("./app/routes/pago.route.js")(app);
 require("./app/routes/reporte.route.js")(app);
 require("./app/routes/cupon.route")(app);
