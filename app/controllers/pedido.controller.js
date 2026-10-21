@@ -1,5 +1,5 @@
 const db = require("../models");
-const { expirarPedidosVencidos, cancelarPedidoPendiente } = require("../services/reserva.service.js");
+const { expirarPedidosVencidos, cancelarPedidoPendiente, reembolsarPedidoPagado } = require("../services/reserva.service.js");
 const { validarYCalcular, round2 } = require("../services/cupon.service.js");
 const PDFDocument = require("pdfkit");
 
@@ -494,5 +494,29 @@ exports.getComprobante = async (req, res) => {
       return res.status(500).json({ message: err.message || "Error al generar el comprobante." });
     }
     res.end();
+  }
+};
+// POST /api/pedidos/:id/reembolso (solo empleados)
+// Reembolsa un pedido "pagado" que aún no se envió.
+exports.reembolsarPedido = async (req, res) => {
+  try {
+    const r = await reembolsarPedidoPagado(req.params.id);
+
+    if (r.resultado === "no_encontrado") {
+      return res.status(404).json({ message: `Pedido con id=${req.params.id} no encontrado.` });
+    }
+    if (r.resultado === "no_pagado") {
+      return res.status(400).json({
+        message: `Solo se puede reembolsar un pedido pagado que aún no se envió (estado actual: ${r.estado}).`,
+      });
+    }
+    if (r.resultado === "sin_pago") {
+      return res.status(409).json({ message: "El pedido no tiene un pago completado que reembolsar." });
+    }
+
+    const pedido = await Pedido.findByPk(req.params.id);
+    return res.status(200).json({ message: "Pedido reembolsado y cancelado.", refund_id: r.refundId, pedido });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Error al reembolsar el pedido." });
   }
 };

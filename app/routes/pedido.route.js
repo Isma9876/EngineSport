@@ -47,5 +47,8 @@ module.exports = (app) => {
     controller.actualizarEstadoPedido
   );
 
+    // Reembolsar un pedido pagado (aún no enviado): solo empleados
+  router.post("/:id/reembolso", [authJwt.verifyToken, authJwt.isEmpleado], controller.reembolsarPedido);
+  
   app.use("/api/pedidos", router);
 };
