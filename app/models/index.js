@@ -111,6 +111,23 @@ db.proveedores.hasMany(db.productos, {
   foreignKey: "id_proveedor"
 });
 
+// variantes_producto: un producto tiene muchas variantes
+db.variantes = require("./variante.model.js")(sequelize, Sequelize);
+db.variantes.rawAttributes.id.field = "id_variante";
+
+db.variantes.belongsTo(db.productos, {
+  as: "producto",
+  foreignKey: { name: "id_producto", allowNull: false },
+  onUpdate: "CASCADE",
+  onDelete: "CASCADE"
+});
+db.productos.hasMany(db.variantes, {
+  as: "variantes",
+  foreignKey: { name: "id_producto", allowNull: false },
+  onUpdate: "CASCADE",
+  onDelete: "CASCADE"
+});
+
 // === Ventas (Persona C) ===
 db.pedidos = require("./pedido.model.js")(sequelize, Sequelize);
 db.detallePedidos = require("./detallePedido.model.js")(sequelize, Sequelize);
@@ -130,15 +147,18 @@ db.pagos.belongsTo(db.pedidos, { foreignKey: "id_pedido" });
 db.pedidos.hasMany(db.movimientosInventario, { foreignKey: "id_pedido" });
 db.movimientosInventario.belongsTo(db.pedidos, { foreignKey: "id_pedido" });
 
-// productos 1-N detalle_pedidos
-db.productos.hasMany(db.detallePedidos, { foreignKey: "id_producto" });
-db.detallePedidos.belongsTo(db.productos, { foreignKey: "id_producto" });
+// variantes 1-N detalle_pedidos
+db.variantes.hasMany(db.detallePedidos, { foreignKey: "id_variante", onUpdate: "CASCADE", onDelete: "RESTRICT" });
+db.detallePedidos.belongsTo(db.variantes, { as: "variante", foreignKey: "id_variante" });
 
-// productos 1-N movimientos_inventario
-db.productos.hasMany(db.movimientosInventario, { foreignKey: "id_producto" });
-db.movimientosInventario.belongsTo(db.productos, { foreignKey: "id_producto" });
+// variantes 1-N movimientos_inventario
+db.variantes.hasMany(db.movimientosInventario, { foreignKey: "id_variante", onUpdate: "CASCADE", onDelete: "RESTRICT" });
+db.movimientosInventario.belongsTo(db.variantes, { as: "variante", foreignKey: "id_variante" });
 
 db.cupon.hasMany(db.pedidos, { foreignKey: "id_cupon" });
 db.pedidos.belongsTo(db.cupon, { foreignKey: "id_cupon" });
+
+
+
 
 module.exports = db;
