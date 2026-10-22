@@ -1,6 +1,55 @@
 // app/controllers/cliente.controller.js
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const db = require("../models");
 const Cliente = db.clientes;
+const Usuario = db.usuarios;
+const Direccion = db.direccionesCliente;
+const Pedido = db.pedidos; // Módulo de Ventas: SOLO LECTURA (count), no se modifica nada ahí.
+
+// ---------------------------------------------------------------------------
+// Helpers internos (no se exportan)
+// ---------------------------------------------------------------------------
+
+// Un cliente con pedidos pendientes o pagados (aún no enviados) no debe
+// desactivarse: su dirección de envío se anonimiza y el pedido no podría entregarse.
+// Si el equipo prefiere quitar esta restricción, basta con borrar este helper
+// y sus dos usos (en "delete" y en "eliminarMiCuenta").
+async function tienePedidosEnCurso(cliente, t) {
+  const total = await Pedido.count({
+    where: { id_cliente: cliente.id, estado: ["pendiente", "pagado"] },
+    transaction: t
+  });
+  return total > 0;
+}
+
+// Desactiva la cuenta SIN borrar filas (conserva pedidos, pagos y estadísticas)
+// y anonimiza los datos personales.
+async function desactivarYAnonimizar(cliente, t) {
+  await cliente.update(
+    { activo: false, nombre: "Cuenta", apellido: "eliminada", telefono: null },
+    { transaction: t }
+  );
+
+  // Password aleatorio: nadie puede volver a entrar con esta cuenta,
+  // y el email original queda libre para un registro nuevo.
+  const passwordInutilizable = await bcrypt.hash(crypto.randomBytes(16).toString("hex"), 10);
+  await Usuario.update(
+    { email: `eliminado_${cliente.id}@enginesport.invalid`, password: passwordInutilizable },
+    { where: { id_usuario: cliente.id_usuario }, transaction: t }
+  );
+
+  // Se conservan ciudad, estado y país (útiles para estadísticas);
+  // se elimina lo que identifica a la persona.
+  await Direccion.update(
+    { direccion: "Dirección eliminada", codigo_postal: null, es_predeterminada: false },
+    { where: { id_cliente: cliente.id }, transaction: t }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Endpoints
+// ---------------------------------------------------------------------------
 
 // Listar todos los clientes (solo empleados)
 exports.findAll = async (req, res) => {
@@ -62,21 +111,80 @@ exports.update = async (req, res) => {
   }
 };
 
-// Eliminar un cliente (solo empleados) — no borra el usuario asociado, ver nota en la ruta.
+// Desactivar un cliente (solo empleados).
+// Ya NO borra filas: conserva pedidos y pagos, anonimiza datos personales
+// y libera el email. Antes era un destroy() que fallaba por la FK de direcciones
+// y dejaba el usuario huérfano.
 exports.delete = async (req, res) => {
+  const t = await db.sequelize.transaction();
   try {
-    const { id } = req.params;
-    const filasEliminadas = await Cliente.destroy({
-      where: { id_cliente: id }
-    });
+    const cliente = await Cliente.findByPk(req.params.id, { transaction: t });
 
-    if (filasEliminadas === 0) {
-      return res.status(404).json({ message: `No se encontró un cliente con id ${id}.` });
+    if (!cliente) {
+      await t.rollback();
+      return res.status(404).json({ message: `No se encontró un cliente con id ${req.params.id}.` });
     }
 
-    res.status(200).json({ message: "Cliente eliminado correctamente." });
+    if (await tienePedidosEnCurso(cliente, t)) {
+      await t.rollback();
+      return res.status(409).json({
+        message: "El cliente tiene pedidos pendientes o pagados sin enviar. Resuélvelos antes de desactivar la cuenta."
+      });
+    }
+
+    await desactivarYAnonimizar(cliente, t);
+    await t.commit();
+
+    res.status(200).json({ message: "Cuenta desactivada correctamente." });
   } catch (error) {
-    res.status(500).json({ message: "Error al eliminar el cliente.", error: error.message });
+    await t.rollback();
+    res.status(500).json({ message: "Error al desactivar el cliente.", error: error.message });
+  }
+};
+
+// El propio cliente desactiva su cuenta, confirmando su contraseña.
+// Ruta: POST /api/clientes/me/eliminar-cuenta  (body: { "password": "..." })
+exports.eliminarMiCuenta = async (req, res) => {
+  const { password } = req.body;
+
+  if (req.usuario.tipo !== "cliente") {
+    return res.status(403).json({ message: "Solo los clientes pueden eliminar su cuenta por esta vía." });
+  }
+
+  if (!password) {
+    return res.status(400).json({ message: "Debes confirmar tu contraseña." });
+  }
+
+  const t = await db.sequelize.transaction();
+  try {
+    const usuario = await Usuario.findByPk(req.usuario.id, { transaction: t });
+    const cliente = await Cliente.findOne({ where: { id_usuario: req.usuario.id }, transaction: t });
+
+    if (!usuario || !cliente) {
+      await t.rollback();
+      return res.status(404).json({ message: "Cuenta no encontrada." });
+    }
+
+    const passwordValido = await bcrypt.compare(password, usuario.password);
+    if (!passwordValido) {
+      await t.rollback();
+      return res.status(401).json({ message: "Contraseña incorrecta." });
+    }
+
+    if (await tienePedidosEnCurso(cliente, t)) {
+      await t.rollback();
+      return res.status(409).json({
+        message: "Tienes pedidos pendientes o pagados sin enviar. Podrás eliminar tu cuenta cuando se completen."
+      });
+    }
+
+    await desactivarYAnonimizar(cliente, t);
+    await t.commit();
+
+    res.status(200).json({ message: "Tu cuenta fue desactivada." });
+  } catch (error) {
+    await t.rollback();
+    res.status(500).json({ message: "Error al eliminar la cuenta.", error: error.message });
   }
 };
 

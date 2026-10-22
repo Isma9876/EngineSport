@@ -9,11 +9,15 @@ module.exports = (app) => {
   // Solo empleados pueden listar a todos los clientes.
   router.get("/", verifyToken, isEmpleado, clientes.findAll);
 
-  // Un empleado, o el propio cliente dueño del perfil, pueden ver/editar/eliminar.
+  // El propio cliente desactiva su cuenta confirmando su contraseña (body: { "password": "..." }).
+  // Usa POST y no DELETE porque algunos clientes HTTP descartan el body en un DELETE.
+  router.post("/me/eliminar-cuenta", verifyToken, clientes.eliminarMiCuenta);
+
+  // Un empleado, o el propio cliente dueño del perfil, pueden ver/editar.
   router.get("/:id", verifyToken, isEmpleadoODueno(clientes.obtenerIdUsuarioDeCliente), clientes.findOne);
   router.put("/:id", verifyToken, isEmpleadoODueno(clientes.obtenerIdUsuarioDeCliente), clientes.update);
 
-  // Eliminar un cliente queda reservado a empleados (acción administrativa).
+  // Desactivar un cliente (borrado lógico + anonimización) queda reservado a empleados.
   router.delete("/:id", verifyToken, isEmpleado, clientes.delete);
 
   app.use("/api/clientes", router);
