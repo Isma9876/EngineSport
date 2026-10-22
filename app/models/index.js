@@ -158,7 +158,17 @@ db.movimientosInventario.belongsTo(db.variantes, { as: "variante", foreignKey: "
 db.cupon.hasMany(db.pedidos, { foreignKey: "id_cupon" });
 db.pedidos.belongsTo(db.cupon, { foreignKey: "id_cupon" });
 
+// === Carrito ===
+db.carritos = require("./carrito.model.js")(sequelize, Sequelize);
+db.detalleCarrito = require("./detalleCarrito.model.js")(sequelize, Sequelize);
 
+db.carritos.belongsTo(db.clientes, { foreignKey: "id_cliente", onDelete: "CASCADE" });
+db.clientes.hasOne(db.carritos, { foreignKey: "id_cliente", as: "carrito" });
 
+db.carritos.hasMany(db.detalleCarrito, { foreignKey: "id_carrito", as: "detalles", onDelete: "CASCADE" });
+db.detalleCarrito.belongsTo(db.carritos, { foreignKey: "id_carrito" });
+
+db.variantes.hasMany(db.detalleCarrito, { foreignKey: "id_variante", onDelete: "CASCADE" });
+db.detalleCarrito.belongsTo(db.variantes, { as: "variante", foreignKey: "id_variante" });
 
 module.exports = db;
