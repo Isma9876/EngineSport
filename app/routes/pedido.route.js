@@ -17,6 +17,9 @@ module.exports = (app) => {
   // Crear pedido: un cliente solo para sí mismo; un empleado para cualquiera
   router.post("/", [authJwt.verifyToken, authJwt.isEmpleadoODueno(obtenerIdUsuarioDeClienteEnBody)], controller.crearPedido);
 
+    // Expiración de reservas para un cron externo (se autentica con x-cron-secret, no con JWT)
+  router.post("/expirar", controller.expirarReservas);
+  
   // Listar todos los pedidos: solo empleados
   router.get("/", [authJwt.verifyToken, authJwt.isEmpleado], controller.getPedidos);
 

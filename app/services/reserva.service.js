@@ -15,15 +15,16 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const RESERVA_MINUTOS = parseInt(process.env.RESERVA_MINUTOS, 10) || 30;
 
 // Cancela el PaymentIntent del pedido para que ya no se pueda pagar.
+// `razon` es el cancellation_reason de Stripe ("abandoned", "requested_by_customer", ...).
 // Devuelve false si el pago ya se recibió o está en proceso: en ese caso
 // NO se debe cancelar el pedido (el webhook lo marcará como pagado).
-const cancelarIntentoStripe = async (pago) => {
+const cancelarIntentoStripe = async (pago, razon = "requested_by_customer") => {
   if (!pago || !pago.referencia_transaccion || !pago.referencia_transaccion.startsWith("pi_")) {
     return true; // nunca se generó un intent
   }
 
   try {
-    await stripe.paymentIntents.cancel(pago.referencia_transaccion);
+    await stripe.paymentIntents.cancel(pago.referencia_transaccion, { cancellation_reason: razon });
     return true;
   } catch (err) {
     // Si ya estaba cancelado, está bien; si está succeeded/processing, no se cancela el pedido.
@@ -46,8 +47,11 @@ const cancelarPedidoPendiente = async (idPedido, motivo = "cancelación de pedid
   const pagoPrevio = await Pago.findOne({ where: { id_pedido: idPedido } });
 
   // Primero se cancela el intent en Stripe, para que el cliente no pueda pagar
-  // mientras se libera el stock.
-  const puedeCancelar = await cancelarIntentoStripe(pagoPrevio);
+  // mientras se libera el stock. La expiración se marca como "abandoned".
+  const puedeCancelar = await cancelarIntentoStripe(
+    pagoPrevio,
+    motivo === "expiración de reserva" ? "abandoned" : "requested_by_customer"
+  );
   if (!puedeCancelar) return "pago_en_curso";
 
   const t = await sequelize.transaction();

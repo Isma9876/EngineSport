@@ -2,6 +2,7 @@ const db = require("../models");
 const { expirarPedidosVencidos, cancelarPedidoPendiente, reembolsarPedidoPagado } = require("../services/reserva.service.js");
 const { validarYCalcular, round2 } = require("../services/cupon.service.js");
 const PDFDocument = require("pdfkit");
+const crypto = require("crypto");
 
 const Pedido = db.pedidos;
 const DetallePedido = db.detallePedidos;
@@ -518,5 +519,25 @@ exports.reembolsarPedido = async (req, res) => {
     return res.status(200).json({ message: "Pedido reembolsado y cancelado.", refund_id: r.refundId, pedido });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Error al reembolsar el pedido." });
+  }
+};
+// POST /api/pedidos/expirar
+// Lo llama un cron externo cada pocos minutos. No usa JWT: se autentica con el header
+// x-cron-secret, que debe coincidir con CRON_SECRET. Sin CRON_SECRET configurado, siempre responde 401.
+const hashSecreto = (s) => crypto.createHash("sha256").update(String(s)).digest();
+
+exports.expirarReservas = async (req, res) => {
+  const secreto = process.env.CRON_SECRET;
+  const recibido = req.get("x-cron-secret") || "";
+
+  if (!secreto || !crypto.timingSafeEqual(hashSecreto(recibido), hashSecreto(secreto))) {
+    return res.status(401).json({ message: "No autorizado." });
+  }
+
+  try {
+    const resultado = await expirarPedidosVencidos({ limite: 100 });
+    return res.status(200).json(resultado);
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Error al expirar reservas." });
   }
 };
