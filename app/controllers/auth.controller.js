@@ -16,6 +16,12 @@ function firmarToken(usuario) {
   );
 }
 
+// Devuelve el perfil (cliente o empleado) asociado a un usuario.
+async function obtenerPerfil(usuario) {
+  const Perfil = usuario.tipo === "empleado" ? Empleado : Cliente;
+  return Perfil.findOne({ where: { id_usuario: usuario.id } });
+}
+
 // Registro público: siempre crea un usuario tipo "cliente" + su perfil de cliente.
 // Los empleados no se auto-registran por esta vía (ver empleado.controller.js).
 exports.register = async (req, res) => {
@@ -37,7 +43,17 @@ exports.register = async (req, res) => {
     const usuarioExistente = await Usuario.findOne({ where: { email } });
     if (usuarioExistente) {
       await t.rollback();
-      return res.status(409).json({ message: "Ya existe un usuario registrado con ese email." });
+
+      // Si el correo pertenece a una cuenta desactivada, se avisa para que
+      // la persona sepa que puede pedir su reactivación.
+      const perfil = await obtenerPerfil(usuarioExistente);
+      const desactivada = perfil && perfil.activo === false;
+
+      return res.status(409).json({
+        message: desactivada
+          ? "Este correo pertenece a una cuenta desactivada. Contacta a un empleado para reactivarla."
+          : "Ya existe un usuario registrado con ese email."
+      });
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -98,10 +114,7 @@ exports.login = async (req, res) => {
     // Se revisa DESPUÉS de validar el password: solo quien conoce las
     // credenciales se entera del estado de la cuenta.
     // Si el usuario no tiene perfil asociado, no se bloquea (comportamiento previo).
-    const perfil = usuario.tipo === "empleado"
-      ? await Empleado.findOne({ where: { id_usuario: usuario.id } })
-      : await Cliente.findOne({ where: { id_usuario: usuario.id } });
-
+    const perfil = await obtenerPerfil(usuario);
     if (perfil && perfil.activo === false) {
       return res.status(403).json({ message: "Esta cuenta está desactivada." });
     }
