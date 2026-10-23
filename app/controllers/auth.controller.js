@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const db = require("../models");
 const Usuario = db.usuarios;
 const Cliente = db.clientes;
+const Empleado = db.empleados;
 
 const SALT_ROUNDS = 10;
 
@@ -13,6 +14,12 @@ function firmarToken(usuario) {
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || "1h" }
   );
+}
+
+// Devuelve el perfil (cliente o empleado) asociado a un usuario.
+async function obtenerPerfil(usuario) {
+  const Perfil = usuario.tipo === "empleado" ? Empleado : Cliente;
+  return Perfil.findOne({ where: { id_usuario: usuario.id } });
 }
 
 // Registro público: siempre crea un usuario tipo "cliente" + su perfil de cliente.
@@ -36,7 +43,17 @@ exports.register = async (req, res) => {
     const usuarioExistente = await Usuario.findOne({ where: { email } });
     if (usuarioExistente) {
       await t.rollback();
-      return res.status(409).json({ message: "Ya existe un usuario registrado con ese email." });
+
+      // Si el correo pertenece a una cuenta desactivada, se avisa para que
+      // la persona sepa que puede pedir su reactivación.
+      const perfil = await obtenerPerfil(usuarioExistente);
+      const desactivada = perfil && perfil.activo === false;
+
+      return res.status(409).json({
+        message: desactivada
+          ? "Este correo pertenece a una cuenta desactivada. Contacta a un empleado para reactivarla."
+          : "Ya existe un usuario registrado con ese email."
+      });
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -91,6 +108,15 @@ exports.login = async (req, res) => {
     const passwordValido = await bcrypt.compare(password, usuario.password);
     if (!passwordValido) {
       return res.status(401).json({ message: "Credenciales inválidas." });
+    }
+
+    // Cuenta desactivada (por el propio cliente o por un empleado).
+    // Se revisa DESPUÉS de validar el password: solo quien conoce las
+    // credenciales se entera del estado de la cuenta.
+    // Si el usuario no tiene perfil asociado, no se bloquea (comportamiento previo).
+    const perfil = await obtenerPerfil(usuario);
+    if (perfil && perfil.activo === false) {
+      return res.status(403).json({ message: "Esta cuenta está desactivada." });
     }
 
     const token = firmarToken(usuario);
