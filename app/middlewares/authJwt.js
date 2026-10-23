@@ -76,8 +76,20 @@ const isEmpleadoODueno = (idUsuarioDelRecurso) => {
   };
 };
 
+// Para rutas públicas que muestran más información a usuarios con sesión (ej. el catálogo).
+// - Sin header Authorization: continúa como visitante (req.usuario queda sin definir).
+// - Con header Authorization: se valida igual que en verifyToken; si el token es
+//   inválido o venció responde 401, para no confundirlo con un visitante.
+const verifyTokenOptional = (req, res, next) => {
+  if (!req.headers["authorization"]) {
+    return next();
+  }
+  return verifyToken(req, res, next);
+};
+
 module.exports = {
   verifyToken,
+  verifyTokenOptional,
   isEmpleado,
   isCliente,
   isEmpleadoODueno

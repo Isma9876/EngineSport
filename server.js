@@ -33,6 +33,7 @@ db.sequelize
 
 // Rutas
 require("./app/routes/producto.route.js")(app);
+require("./app/routes/variante.route.js")(app);
 require("./app/routes/categoria.route.js")(app);
 require("./app/routes/proveedor.route.js")(app);
 require("./app/routes/auth.route.js")(app);
@@ -40,6 +41,7 @@ require("./app/routes/cliente.route.js")(app);
 require("./app/routes/direccionCliente.route.js")(app);
 require("./app/routes/empleado.route.js")(app);
 require("./app/routes/pedido.route.js")(app);
+require("./app/routes/carrito.route.js")(app);
 require("./app/routes/pago.route.js")(app);
 require("./app/routes/reporte.route.js")(app);
 require("./app/routes/cupon.route")(app);
