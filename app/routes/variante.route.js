@@ -8,6 +8,7 @@ module.exports = (app) => {
   router.post("/productos/:id/variantes", [verifyToken, isEmpleado], variantes.create);
   router.put("/variantes/:id", [verifyToken, isEmpleado], variantes.update);
   router.delete("/variantes/:id", [verifyToken, isEmpleado], variantes.delete);
-
+  router.post("/variantes/:id/stock", [verifyToken, isEmpleado], variantes.ajustarStock);
+  
   app.use("/api", router);
 };
