@@ -17,6 +17,9 @@ module.exports = (app) => {
   // Crear pedido: un cliente solo para sí mismo; un empleado para cualquiera
   router.post("/", [authJwt.verifyToken, authJwt.isEmpleadoODueno(obtenerIdUsuarioDeClienteEnBody)], controller.crearPedido);
 
+    // Expiración de reservas para un cron externo (se autentica con x-cron-secret, no con JWT)
+  router.post("/expirar", controller.expirarReservas);
+  
   // Listar todos los pedidos: solo empleados
   router.get("/", [authJwt.verifyToken, authJwt.isEmpleado], controller.getPedidos);
 
@@ -47,5 +50,8 @@ module.exports = (app) => {
     controller.actualizarEstadoPedido
   );
 
+    // Reembolsar un pedido pagado (aún no enviado): solo empleados
+  router.post("/:id/reembolso", [authJwt.verifyToken, authJwt.isEmpleado], controller.reembolsarPedido);
+  
   app.use("/api/pedidos", router);
 };
