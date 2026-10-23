@@ -3,7 +3,7 @@ const db = require("../models");
 const Producto = db.productos;
 const Variante = db.variantes;
 const { Op } = db.Sequelize;
-const { registrarStockInicial } = require("../services/inventario.service.js");
+const { registrarStockInicial, ajustarStock, ErrorInventario } = require("../services/inventario.service.js");
 
 // Quita espacios sobrantes; si queda vacío devuelve null
 const cleanText = (value) => {
@@ -197,5 +197,50 @@ exports.delete = async (req, res) => {
       });
     }
     res.status(500).json({ message: "Error al eliminar la variante.", error: error.message });
+  }
+};
+
+// Ajuste manual de stock: entrada o salida con motivo (la lógica está en inventario.service.js)
+exports.ajustarStock = async (req, res) => {
+  try {
+    const id = parsePositiveInt(req.params.id, null);
+    if (id === null) {
+      return res.status(400).json({ message: "El id de la variante debe ser un entero positivo." });
+    }
+
+    const body = req.body || {};
+
+    const tipoMovimiento = body.tipo_movimiento;
+    if (tipoMovimiento !== "entrada" && tipoMovimiento !== "salida") {
+      return res.status(400).json({ message: 'tipo_movimiento debe ser "entrada" o "salida".' });
+    }
+
+    // Solo se acepta un número JSON (no texto ni booleanos)
+    const cantidad = typeof body.cantidad === "number" ? parsePositiveInt(body.cantidad, null) : null;
+    if (cantidad === null) {
+      return res.status(400).json({ message: "cantidad debe ser un entero mayor que 0." });
+    }
+
+    const motivo = cleanText(body.motivo);
+    if (!motivo) {
+      return res.status(400).json({ message: "El motivo es obligatorio." });
+    }
+    if (motivo.length > 150) {
+      return res.status(400).json({ message: "El motivo no puede pasar de 150 caracteres." });
+    }
+
+    const { variante, movimiento } = await ajustarStock({
+      idVariante: id,
+      tipoMovimiento,
+      cantidad,
+      motivo
+    });
+
+    res.status(200).json({ message: "Stock ajustado correctamente.", variante, movimiento });
+  } catch (error) {
+    if (error instanceof ErrorInventario) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    res.status(500).json({ message: "Error al ajustar el stock.", error: error.message });
   }
 };
