@@ -5,6 +5,7 @@ const db = require("../models");
 const Usuario = db.usuarios;
 const Cliente = db.clientes;
 const Empleado = db.empleados;
+const ListaNegra = db.listaNegra;
 
 const SALT_ROUNDS = 10;
 
@@ -108,6 +109,18 @@ exports.login = async (req, res) => {
     const passwordValido = await bcrypt.compare(password, usuario.password);
     if (!passwordValido) {
       return res.status(401).json({ message: "Credenciales inválidas." });
+    }
+
+    // Cuenta en lista negra (bloqueo como sanción, distinto de la desactivación).
+    // Se revisa DESPUÉS de validar el password, por la misma razón que el chequeo
+    // de cuenta desactivada: solo quien conoce las credenciales se entera.
+    // No se expone el motivo del bloqueo.
+    const bloqueada = await ListaNegra.findOne({
+      where: { id_usuario: usuario.id, activo: true },
+      attributes: ["id"]
+    });
+    if (bloqueada) {
+      return res.status(403).json({ message: "Esta cuenta ha sido bloqueada." });
     }
 
     // Cuenta desactivada (por el propio cliente o por un empleado).

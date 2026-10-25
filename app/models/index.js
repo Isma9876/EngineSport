@@ -171,4 +171,7 @@ db.detalleCarrito.belongsTo(db.carritos, { foreignKey: "id_carrito" });
 db.variantes.hasMany(db.detalleCarrito, { foreignKey: "id_variante", onDelete: "CASCADE" });
 db.detalleCarrito.belongsTo(db.variantes, { as: "variante", foreignKey: "id_variante" });
 
+// === Lista negra ===
+db.listaNegra = require("./listaNegra.model.js")(sequelize, Sequelize);
+
 module.exports = db;

@@ -45,6 +45,7 @@ require("./app/routes/carrito.route.js")(app);
 require("./app/routes/pago.route.js")(app);
 require("./app/routes/reporte.route.js")(app);
 require("./app/routes/cupon.route")(app);
+require("./app/routes/listaNegra.route.js")(app);
 
 // Ruta simple de prueba
 app.get("/", (req, res) => {
