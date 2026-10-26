@@ -6,6 +6,7 @@ const Empleado = db.empleados;
 const { Op } = db.Sequelize;
 
 const MOTIVO_MAX = 500;
+const ID_MAX = 2147483647; // máximo de un INTEGER en Postgres
 
 // El token trae el id de "usuarios", pero lista_negra guarda el id de "empleados".
 async function obtenerEmpleadoActual(req) {
@@ -26,6 +27,12 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: "id_usuario y motivo son obligatorios." });
     }
 
+    // id_usuario debe ser un entero positivo. Sin esto, un valor como "abc" llega
+    // a Postgres y se convierte en un 500 que expone el error interno.
+    if (!/^[1-9]\d*$/.test(String(id_usuario)) || Number(id_usuario) > ID_MAX) {
+      return res.status(400).json({ message: "id_usuario debe ser un número entero positivo." });
+    }
+
     if (motivoLimpio.length > MOTIVO_MAX) {
       return res.status(400).json({ message: `El motivo no puede superar los ${MOTIVO_MAX} caracteres.` });
     }
@@ -35,7 +42,7 @@ exports.create = async (req, res) => {
       return res.status(403).json({ message: "No se encontró un perfil de empleado activo para esta acción." });
     }
 
-    const usuario = await Usuario.findByPk(id_usuario, { attributes: ["id", "email", "tipo"] });
+    const usuario = await Usuario.findByPk(Number(id_usuario), { attributes: ["id", "email", "tipo"] });
     if (!usuario) {
       return res.status(404).json({ message: `No se encontró un usuario con id ${id_usuario}.` });
     }
