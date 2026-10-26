@@ -123,7 +123,9 @@ exports.delete = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!/^\d+$/.test(id)) {
+    // El id debe ser numérico y caber en un INTEGER de Postgres; si no, llegaría
+    // a la base y se convertiría en un 500 que expone el error interno.
+    if (!/^\d+$/.test(id) || Number(id) > ID_MAX) {
       return res.status(400).json({ message: "El id del bloqueo no es válido." });
     }
 
