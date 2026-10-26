@@ -9,7 +9,22 @@ const cors = require("cors");
 
 const app = express();
 
-app.use(cors());
+// CORS: solo los dominios de CORS_ORIGINS (separados por coma, sin "/" final).
+// Sin la variable, solo se permite el frontend local de Vite.
+// Las peticiones sin cabecera Origin (Thunder Client, curl, webhook de Stripe) pasan.
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      callback(null, false); // sin cabeceras CORS: el navegador bloquea la respuesta
+    }
+  })
+);
 
 const pagoController = require("./app/controllers/pago.controller.js");
 app.post(
