@@ -2,31 +2,77 @@
 const jwt = require("jsonwebtoken");
 const db = require("../models");
 
-// Verifica que la petición traiga un token JWT válido en el header Authorization.
-// Formato esperado: Authorization: Bearer <token>
-// Si es válido, adjunta req.usuario = { id, email, tipo } y continúa.
-const verifyToken = (req, res, next) => {
+// Valida el token y el estado de la cuenta. NO responde: devuelve el resultado
+// para que verifyToken y verifyTokenOptional decidan qué hacer con él.
+//   { usuario } -> token válido y cuenta no desactivada
+//   { error }   -> { status, body } con la respuesta que corresponde
+//
+// Los textos de "message" son los de siempre; "code" es un campo NUEVO que el
+// frontend puede usar para distinguir los casos sin depender del texto:
+//   TOKEN_EXPIRADO      (401) el token venció
+//   TOKEN_INVALIDO      (401) el token está alterado o mal formado
+//   CUENTA_DESACTIVADA  (403) el token es válido, pero la cuenta tiene activo = false
+const autenticar = async (req) => {
   const authHeader = req.headers["authorization"];
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "No se proporcionó un token de autenticación." });
+    return { error: { status: 401, body: { message: "No se proporcionó un token de autenticación." } } };
   }
 
   const token = authHeader.split(" ")[1];
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(401).json({ message: "Token inválido o expirado." });
-    }
-
-    req.usuario = {
-      id: decoded.id,
-      email: decoded.email,
-      tipo: decoded.tipo
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return {
+      error: {
+        status: 401,
+        body: {
+          message: "Token inválido o expirado.",
+          code: err.name === "TokenExpiredError" ? "TOKEN_EXPIRADO" : "TOKEN_INVALIDO"
+        }
+      }
     };
+  }
 
-    next();
-  });
+  // Un token vigente no basta: la cuenta podría haberse desactivado después de emitirlo.
+  // Si el usuario no tiene perfil asociado, no se bloquea (igual que en el login).
+  try {
+    const Perfil = decoded.tipo === "empleado" ? db.empleados : db.clientes;
+    const perfil = await Perfil.findOne({
+      where: { id_usuario: decoded.id },
+      attributes: ["activo"]
+    });
+
+    if (perfil && perfil.activo === false) {
+      return {
+        error: {
+          status: 403,
+          body: { message: "Esta cuenta está desactivada.", code: "CUENTA_DESACTIVADA" }
+        }
+      };
+    }
+  } catch (error) {
+    return { error: { status: 500, body: { message: "Error al validar la sesión." } } };
+  }
+
+  return { usuario: { id: decoded.id, email: decoded.email, tipo: decoded.tipo } };
+};
+
+// Verifica que la petición traiga un token JWT válido en el header Authorization
+// y que la cuenta no esté desactivada.
+// Formato esperado: Authorization: Bearer <token>
+// Si todo está bien, adjunta req.usuario = { id, email, tipo } y continúa.
+const verifyToken = async (req, res, next) => {
+  const resultado = await autenticar(req);
+
+  if (resultado.error) {
+    return res.status(resultado.error.status).json(resultado.error.body);
+  }
+
+  req.usuario = resultado.usuario;
+  next();
 };
 
 // Debe usarse SIEMPRE después de verifyToken en la cadena de middlewares.
@@ -80,11 +126,25 @@ const isEmpleadoODueno = (idUsuarioDelRecurso) => {
 // - Sin header Authorization: continúa como visitante (req.usuario queda sin definir).
 // - Con header Authorization: se valida igual que en verifyToken; si el token es
 //   inválido o venció responde 401, para no confundirlo con un visitante.
-const verifyTokenOptional = (req, res, next) => {
+// - Con un token válido de una cuenta DESACTIVADA: se trata como visitante. La cuenta
+//   no obtiene los privilegios de su sesión, pero el catálogo público sigue funcionando
+//   sin que el frontend tenga que descartar el token primero.
+const verifyTokenOptional = async (req, res, next) => {
   if (!req.headers["authorization"]) {
     return next();
   }
-  return verifyToken(req, res, next);
+
+  const resultado = await autenticar(req);
+
+  if (resultado.error) {
+    if (resultado.error.body.code === "CUENTA_DESACTIVADA") {
+      return next();
+    }
+    return res.status(resultado.error.status).json(resultado.error.body);
+  }
+
+  req.usuario = resultado.usuario;
+  next();
 };
 
 module.exports = {
