@@ -120,7 +120,7 @@ exports.login = async (req, res) => {
       attributes: ["id"]
     });
     if (bloqueada) {
-      return res.status(403).json({ message: "Esta cuenta ha sido bloqueada." });
+      return res.status(403).json({ message: "Esta cuenta ha sido bloqueada.", code: "CUENTA_BLOQUEADA" });
     }
 
     // Cuenta desactivada (por el propio cliente o por un empleado).
@@ -129,16 +129,38 @@ exports.login = async (req, res) => {
     // Si el usuario no tiene perfil asociado, no se bloquea (comportamiento previo).
     const perfil = await obtenerPerfil(usuario);
     if (perfil && perfil.activo === false) {
-      return res.status(403).json({ message: "Esta cuenta está desactivada." });
+      return res.status(403).json({ message: "Esta cuenta está desactivada.", code: "CUENTA_DESACTIVADA" });
     }
 
     const token = firmarToken(usuario);
 
-    res.status(200).json({
+    const respuesta = {
       message: "Login exitoso.",
       token,
       usuario: { id: usuario.id, email: usuario.email, tipo: usuario.tipo }
-    });
+    };
+
+    // Perfil mínimo para el frontend (el "id" del cliente se necesita para direcciones
+    // y pedidos; el nombre sirve para saludar). Se reutiliza el perfil ya consultado
+    // arriba: no agrega ninguna consulta. Nunca se incluye salario, teléfono ni password.
+    if (perfil) {
+      if (usuario.tipo === "empleado") {
+        respuesta.empleado = {
+          id: perfil.id,
+          nombre: perfil.nombre,
+          apellido: perfil.apellido,
+          puesto: perfil.puesto
+        };
+      } else {
+        respuesta.cliente = {
+          id: perfil.id,
+          nombre: perfil.nombre,
+          apellido: perfil.apellido
+        };
+      }
+    }
+
+    res.status(200).json(respuesta);
   } catch (error) {
     res.status(500).json({ message: "Error al iniciar sesión.", error: error.message });
   }
