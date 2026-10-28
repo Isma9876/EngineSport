@@ -62,6 +62,11 @@ require("./app/routes/reporte.route.js")(app);
 require("./app/routes/cupon.route")(app);
 require("./app/routes/listaNegra.route.js")(app);
 
+// Health check: responde sin tocar la base de datos (lo usa el pinger para mantener despierto a Render)
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 // Ruta simple de prueba
 app.get("/", (req, res) => {
   res.json({
