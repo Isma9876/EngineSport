@@ -3,7 +3,18 @@ const db = require("../models");
 const DireccionCliente = db.direccionesCliente;
 const Cliente = db.clientes;
 
-// Crear una nueva dirección para un cliente
+const ID_MAX = 2147483647; // máximo de un INTEGER en Postgres
+
+// Un id válido es un entero positivo. Sin esta revisión, un valor como "abc"
+// llega a Postgres y termina en un 500 que expone el error interno.
+const idValido = (valor) => /^[1-9]\d*$/.test(String(valor)) && Number(valor) <= ID_MAX;
+
+// Campos que el usuario puede cambiar al editar una dirección. Se excluyen a propósito
+// id_direccion e id_cliente: si no, el dueño podría mover su dirección a otro cliente.
+const CAMPOS_EDITABLES = ["direccion", "ciudad", "estado", "codigo_postal", "pais", "es_predeterminada"];
+
+// Crear una nueva dirección para un cliente.
+// Un cliente solo puede crearlas para sí mismo; un empleado, para cualquiera.
 exports.create = async (req, res) => {
   try {
     const { id_cliente, direccion, ciudad, estado, codigo_postal, pais, es_predeterminada } = req.body;
@@ -12,13 +23,25 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: "id_cliente y direccion son obligatorios." });
     }
 
-    const clienteExiste = await Cliente.findByPk(id_cliente);
-    if (!clienteExiste) {
+    if (!idValido(id_cliente)) {
+      return res.status(400).json({ message: "id_cliente debe ser un número entero positivo." });
+    }
+
+    const cliente = await Cliente.findByPk(Number(id_cliente));
+    const esEmpleado = req.usuario.tipo === "empleado";
+
+    // Para quien no es empleado, "no existe" y "no es tuyo" dan la misma respuesta,
+    // así no se puede averiguar qué ids de cliente existen.
+    if (!esEmpleado && (!cliente || String(cliente.id_usuario) !== String(req.usuario.id))) {
+      return res.status(403).json({ message: "No tienes permiso para crear direcciones para este cliente." });
+    }
+
+    if (!cliente) {
       return res.status(400).json({ message: `No existe un cliente con id ${id_cliente}.` });
     }
 
     const nuevaDireccion = await DireccionCliente.create({
-      id_cliente,
+      id_cliente: Number(id_cliente),
       direccion,
       ciudad,
       estado,
@@ -34,10 +57,11 @@ exports.create = async (req, res) => {
 };
 
 // Listar todas las direcciones de un cliente específico
+// (el permiso lo valida isEmpleadoODueno en la ruta).
 exports.findAllByCliente = async (req, res) => {
   try {
     const { id_cliente } = req.params;
-    const direcciones = await DireccionCliente.findAll({ where: { id_cliente } });
+    const direcciones = await DireccionCliente.findAll({ where: { id_cliente: Number(id_cliente) } });
     res.status(200).json(direcciones);
   } catch (error) {
     res.status(500).json({ message: "Error al obtener las direcciones.", error: error.message });
@@ -60,12 +84,22 @@ exports.findOne = async (req, res) => {
   }
 };
 
-// Actualizar una dirección
+// Actualizar una dirección (solo los campos de CAMPOS_EDITABLES)
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;
-    const [filasActualizadas] = await DireccionCliente.update(req.body, {
-      where: { id_direccion: id }
+
+    const cambios = {};
+    for (const campo of CAMPOS_EDITABLES) {
+      if (req.body[campo] !== undefined) cambios[campo] = req.body[campo];
+    }
+
+    if (Object.keys(cambios).length === 0) {
+      return res.status(400).json({ message: "No se envió ningún campo válido para actualizar." });
+    }
+
+    const [filasActualizadas] = await DireccionCliente.update(cambios, {
+      where: { id_direccion: Number(id) }
     });
 
     if (filasActualizadas === 0) {
@@ -83,7 +117,7 @@ exports.delete = async (req, res) => {
   try {
     const { id } = req.params;
     const filasEliminadas = await DireccionCliente.destroy({
-      where: { id_direccion: id }
+      where: { id_direccion: Number(id) }
     });
 
     if (filasEliminadas === 0) {
@@ -96,11 +130,20 @@ exports.delete = async (req, res) => {
   }
 };
 
-// Helper para el middleware isEmpleadoODueno: dado un id_direccion (route param),
+// Helper para isEmpleadoODueno: dado un id_direccion (route param),
 // devuelve el id_usuario dueño de esa dirección (a través del cliente).
 exports.obtenerIdUsuarioDeDireccion = async (req) => {
+  if (!idValido(req.params.id)) return null;
   const direccion = await DireccionCliente.findByPk(req.params.id);
   if (!direccion) return null;
   const cliente = await Cliente.findByPk(direccion.id_cliente);
+  return cliente ? cliente.id_usuario : null;
+};
+
+// Helper para isEmpleadoODueno: dado un id_cliente (route param),
+// devuelve el id_usuario dueño de ese perfil de cliente.
+exports.obtenerIdUsuarioDeClienteParam = async (req) => {
+  if (!idValido(req.params.id_cliente)) return null;
+  const cliente = await Cliente.findByPk(req.params.id_cliente);
   return cliente ? cliente.id_usuario : null;
 };
