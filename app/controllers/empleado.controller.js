@@ -6,6 +6,14 @@ const Empleado = db.empleados;
 
 const SALT_ROUNDS = 10;
 
+// El correo se compara sin distinguir mayúsculas ni espacios en los extremos: "Ana@x.com"
+// y "ana@x.com" son la misma cuenta. Se compara con lower(email) en la consulta (y no solo
+// al guardar) porque en la base ya hay correos guardados con mayúsculas.
+const { where, fn, col } = db.Sequelize;
+const normalizarEmail = (email) => (typeof email === "string" ? email.trim().toLowerCase() : "");
+const buscarUsuarioPorEmail = (emailNormalizado) =>
+  Usuario.findOne({ where: where(fn("lower", col("email")), emailNormalizado) });
+
 // Crear un nuevo empleado. Solo un empleado autenticado puede hacerlo
 // (ver middleware isEmpleado en la ruta) — no existe registro público de empleados.
 // Crea el usuario (tipo "empleado") y su perfil en una sola transacción.
@@ -14,8 +22,9 @@ exports.create = async (req, res) => {
 
   try {
     const { email, password, nombre, apellido, puesto, telefono, correo, salario, fecha_contratacion } = req.body;
+    const emailNormalizado = normalizarEmail(email);
 
-    if (!email || !password) {
+    if (!emailNormalizado || typeof password !== "string" || !password) {
       await t.rollback();
       return res.status(400).json({ message: "email y password son obligatorios." });
     }
@@ -30,7 +39,7 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: "El salario no puede ser negativo." });
     }
 
-    const usuarioExistente = await Usuario.findOne({ where: { email } });
+    const usuarioExistente = await buscarUsuarioPorEmail(emailNormalizado);
     if (usuarioExistente) {
       await t.rollback();
       return res.status(409).json({ message: "Ya existe un usuario registrado con ese email." });
@@ -39,7 +48,7 @@ exports.create = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
     const nuevoUsuario = await Usuario.create(
-      { email, password: passwordHash, tipo: "empleado" },
+      { email: emailNormalizado, password: passwordHash, tipo: "empleado" },
       { transaction: t }
     );
 
@@ -65,7 +74,8 @@ exports.create = async (req, res) => {
       empleado: nuevoEmpleado
     });
   } catch (error) {
-    await t.rollback();
+    // Si el error ocurre después del commit, la transacción ya terminó y no se puede revertir.
+    if (!t.finished) await t.rollback();
     res.status(500).json({ message: "Error al crear el empleado.", error: error.message });
   }
 };
