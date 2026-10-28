@@ -9,6 +9,14 @@ const ListaNegra = db.listaNegra;
 
 const SALT_ROUNDS = 10;
 
+// El correo se compara sin distinguir mayúsculas ni espacios en los extremos: "Ana@x.com"
+// y "ana@x.com" son la misma cuenta. Se compara con lower(email) en la consulta (y no solo
+// al guardar) porque en la base ya hay correos guardados con mayúsculas.
+const { where, fn, col } = db.Sequelize;
+const normalizarEmail = (email) => (typeof email === "string" ? email.trim().toLowerCase() : "");
+const buscarUsuarioPorEmail = (emailNormalizado) =>
+  Usuario.findOne({ where: where(fn("lower", col("email")), emailNormalizado) });
+
 function firmarToken(usuario) {
   return jwt.sign(
     { id: usuario.id, email: usuario.email, tipo: usuario.tipo },
@@ -30,8 +38,9 @@ exports.register = async (req, res) => {
 
   try {
     const { email, password, nombre, apellido, telefono } = req.body;
+    const emailNormalizado = normalizarEmail(email);
 
-    if (!email || !password) {
+    if (!emailNormalizado || typeof password !== "string" || !password) {
       await t.rollback();
       return res.status(400).json({ message: "email y password son obligatorios." });
     }
@@ -41,7 +50,7 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: "El password debe tener al menos 6 caracteres." });
     }
 
-    const usuarioExistente = await Usuario.findOne({ where: { email } });
+    const usuarioExistente = await buscarUsuarioPorEmail(emailNormalizado);
     if (usuarioExistente) {
       await t.rollback();
 
@@ -60,7 +69,7 @@ exports.register = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
     const nuevoUsuario = await Usuario.create(
-      { email, password: passwordHash, tipo: "cliente" },
+      { email: emailNormalizado, password: passwordHash, tipo: "cliente" },
       { transaction: t }
     );
 
@@ -85,7 +94,8 @@ exports.register = async (req, res) => {
       cliente: nuevoCliente
     });
   } catch (error) {
-    await t.rollback();
+    // Si el error ocurre después del commit, la transacción ya terminó y no se puede revertir.
+    if (!t.finished) await t.rollback();
     res.status(500).json({ message: "Error al registrar el usuario.", error: error.message });
   }
 };
@@ -94,12 +104,13 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const emailNormalizado = normalizarEmail(email);
 
-    if (!email || !password) {
+    if (!emailNormalizado || typeof password !== "string" || !password) {
       return res.status(400).json({ message: "email y password son obligatorios." });
     }
 
-    const usuario = await Usuario.findOne({ where: { email } });
+    const usuario = await buscarUsuarioPorEmail(emailNormalizado);
 
     // Mensaje genérico a propósito: no revelar si el email existe o no.
     if (!usuario) {
