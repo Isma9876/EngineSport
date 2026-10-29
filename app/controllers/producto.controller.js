@@ -5,6 +5,12 @@ const Variante = db.variantes;
 const { Op } = db.Sequelize;
 const { registrarStockInicial } = require("../services/inventario.service.js");
 
+// Postgres: 23001 (restrict_violation) y 23503 (foreign_key_violation) llegan a veces sin el nombre de error de Sequelize
+const esErrorFK = (error) =>
+  error.name === "SequelizeForeignKeyConstraintError" ||
+  ["23001", "23503"].includes(error.parent?.code) ||
+  ["23001", "23503"].includes(error.original?.code);
+
 // Quita espacios sobrantes; si queda vacío devuelve null
 const cleanText = (value) => {
   if (value === undefined || value === null) return null;
@@ -506,7 +512,7 @@ exports.delete = async (req, res) => {
 
     res.status(200).json({ message: "Producto eliminado correctamente." });
   } catch (error) {
-    if (error.name === "SequelizeForeignKeyConstraintError") {
+    if (esErrorFK(error)) {
       return res.status(409).json({
         message: "No se puede eliminar el producto porque tiene ventas o movimientos de inventario. Desactívalo con activo: false."
       });
