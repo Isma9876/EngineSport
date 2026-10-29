@@ -76,7 +76,8 @@ exports.create = async (req, res) => {
   } catch (error) {
     // Si el error ocurre después del commit, la transacción ya terminó y no se puede revertir.
     if (!t.finished) await t.rollback();
-    res.status(500).json({ message: "Error al crear el empleado.", error: error.message });
+    console.error("Error al crear el empleado.", error);
+    res.status(500).json({ message: "Error al crear el empleado." });
   }
 };
 
@@ -88,7 +89,8 @@ exports.findAll = async (req, res) => {
     });
     res.status(200).json(empleados);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener los empleados.", error: error.message });
+    console.error("Error al obtener los empleados.", error);
+    res.status(500).json({ message: "Error al obtener los empleados." });
   }
 };
 
@@ -106,7 +108,8 @@ exports.findOne = async (req, res) => {
 
     res.status(200).json(empleado);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener el empleado.", error: error.message });
+    console.error("Error al obtener el empleado.", error);
+    res.status(500).json({ message: "Error al obtener el empleado." });
   }
 };
 
@@ -131,7 +134,8 @@ exports.update = async (req, res) => {
 
     res.status(200).json({ message: "Empleado actualizado correctamente." });
   } catch (error) {
-    res.status(500).json({ message: "Error al actualizar el empleado.", error: error.message });
+    console.error("Error al actualizar el empleado.", error);
+    res.status(500).json({ message: "Error al actualizar el empleado." });
   }
 };
 
@@ -149,6 +153,7 @@ exports.delete = async (req, res) => {
 
     res.status(200).json({ message: "Empleado eliminado correctamente." });
   } catch (error) {
-    res.status(500).json({ message: "Error al eliminar el empleado.", error: error.message });
+    console.error("Error al eliminar el empleado.", error);
+    res.status(500).json({ message: "Error al eliminar el empleado." });
   }
 };

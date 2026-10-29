@@ -96,7 +96,8 @@ exports.register = async (req, res) => {
   } catch (error) {
     // Si el error ocurre después del commit, la transacción ya terminó y no se puede revertir.
     if (!t.finished) await t.rollback();
-    res.status(500).json({ message: "Error al registrar el usuario.", error: error.message });
+    console.error("Error al registrar el usuario.", error);
+    res.status(500).json({ message: "Error al registrar el usuario." });
   }
 };
 
@@ -173,6 +174,7 @@ exports.login = async (req, res) => {
 
     res.status(200).json(respuesta);
   } catch (error) {
-    res.status(500).json({ message: "Error al iniciar sesión.", error: error.message });
+    console.error("Error al iniciar sesión.", error);
+    res.status(500).json({ message: "Error al iniciar sesión." });
   }
 };
