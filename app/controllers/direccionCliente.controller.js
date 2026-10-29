@@ -83,7 +83,8 @@ exports.create = async (req, res) => {
       throw error;
     }
   } catch (error) {
-    res.status(500).json({ message: "Error al crear la dirección.", error: error.message });
+    console.error("Error al crear la dirección.", error);
+    res.status(500).json({ message: "Error al crear la dirección." });
   }
 };
 
@@ -100,7 +101,8 @@ exports.findAllByCliente = async (req, res) => {
     });
     res.status(200).json(direcciones);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener las direcciones.", error: error.message });
+    console.error("Error al obtener las direcciones.", error);
+    res.status(500).json({ message: "Error al obtener las direcciones." });
   }
 };
 
@@ -116,7 +118,8 @@ exports.findOne = async (req, res) => {
 
     res.status(200).json(direccion);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener la dirección.", error: error.message });
+    console.error("Error al obtener la dirección.", error);
+    res.status(500).json({ message: "Error al obtener la dirección." });
   }
 };
 
@@ -170,7 +173,8 @@ exports.update = async (req, res) => {
 
     res.status(200).json({ message: "Dirección actualizada correctamente." });
   } catch (error) {
-    res.status(500).json({ message: "Error al actualizar la dirección.", error: error.message });
+    console.error("Error al actualizar la dirección.", error);
+    res.status(500).json({ message: "Error al actualizar la dirección." });
   }
 };
 
@@ -208,7 +212,8 @@ exports.delete = async (req, res) => {
 
     res.status(200).json({ message: "Dirección eliminada correctamente." });
   } catch (error) {
-    res.status(500).json({ message: "Error al eliminar la dirección.", error: error.message });
+    console.error("Error al eliminar la dirección.", error);
+    res.status(500).json({ message: "Error al eliminar la dirección." });
   }
 };
 

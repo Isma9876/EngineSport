@@ -25,7 +25,8 @@ exports.findAll = async (req, res) => {
     });
     res.status(200).json(clientes);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener los clientes.", error: error.message });
+    console.error("Error al obtener los clientes.", error);
+    res.status(500).json({ message: "Error al obtener los clientes." });
   }
 };
 
@@ -47,7 +48,8 @@ exports.findOne = async (req, res) => {
 
     res.status(200).json(cliente);
   } catch (error) {
-    res.status(500).json({ message: "Error al obtener el cliente.", error: error.message });
+    console.error("Error al obtener el cliente.", error);
+    res.status(500).json({ message: "Error al obtener el cliente." });
   }
 };
 
@@ -75,7 +77,8 @@ exports.update = async (req, res) => {
 
     res.status(200).json({ message: "Cliente actualizado correctamente." });
   } catch (error) {
-    res.status(500).json({ message: "Error al actualizar el cliente.", error: error.message });
+    console.error("Error al actualizar el cliente.", error);
+    res.status(500).json({ message: "Error al actualizar el cliente." });
   }
 };
 
@@ -97,7 +100,8 @@ exports.delete = async (req, res) => {
 
     res.status(200).json({ message: "Cuenta desactivada correctamente." });
   } catch (error) {
-    res.status(500).json({ message: "Error al desactivar el cliente.", error: error.message });
+    console.error("Error al desactivar el cliente.", error);
+    res.status(500).json({ message: "Error al desactivar el cliente." });
   }
 };
 
@@ -131,7 +135,8 @@ exports.eliminarMiCuenta = async (req, res) => {
 
     res.status(200).json({ message: "Tu cuenta fue desactivada." });
   } catch (error) {
-    res.status(500).json({ message: "Error al desactivar la cuenta.", error: error.message });
+    console.error("Error al desactivar la cuenta.", error);
+    res.status(500).json({ message: "Error al desactivar la cuenta." });
   }
 };
 
