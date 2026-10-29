@@ -211,6 +211,85 @@ const getCategoryTreeIds = async (idCategoria) => {
   return [...ids];
 };
 
+const TALLAS_TEXTO = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+
+// Numéricas primero (ascendente), luego las de texto en orden de talla (XS, S, M, L, XL) y el resto alfabético
+const compareSizes = (a, b) => {
+  const isNumeric = (value) => /^\d+(\.\d+)?$/.test(value);
+  const aNumeric = isNumeric(a);
+  const bNumeric = isNumeric(b);
+  if (aNumeric && bNumeric) return Number(a) - Number(b);
+  if (aNumeric) return -1;
+  if (bNumeric) return 1;
+
+  const aIndex = TALLAS_TEXTO.indexOf(a.toUpperCase());
+  const bIndex = TALLAS_TEXTO.indexOf(b.toUpperCase());
+  if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+  if (aIndex !== -1) return -1;
+  if (bIndex !== -1) return 1;
+  return a.localeCompare(b);
+};
+
+// Opciones de filtro del catálogo: marcas, tallas, colores y rango de precio
+exports.getFilters = async (req, res) => {
+  try {
+    const esEmpleado = req.usuario?.tipo === "empleado";
+
+    // Sin NULL ni valores vacíos o solo espacios
+    // (btrim de NULL da NULL, así que la comparación también descarta los NULL)
+    const notBlank = (column) => ({
+      [Op.and]: [sqlWhere(fn("btrim", col(column)), { [Op.ne]: "" })]
+    });
+
+    const whereProducto = esEmpleado ? {} : { activo: true };
+    const whereVariante = esEmpleado ? {} : { activo: true };
+
+    const [marcas, tallas, colores, precios] = await Promise.all([
+      Producto.findAll({
+        attributes: [[fn("DISTINCT", col("marca")), "valor"]],
+        where: { ...whereProducto, ...notBlank("marca") },
+        order: [[col("valor"), "ASC"]],
+        raw: true
+      }),
+      Variante.findAll({
+        attributes: [[fn("DISTINCT", col(`${Variante.name}.talla`)), "valor"]],
+        where: { ...whereVariante, ...notBlank(`${Variante.name}.talla`) },
+        include: [{ association: "producto", attributes: [], where: whereProducto, required: true }],
+        raw: true
+      }),
+      Variante.findAll({
+        attributes: [[fn("DISTINCT", col(`${Variante.name}.color`)), "valor"]],
+        where: { ...whereVariante, ...notBlank(`${Variante.name}.color`) },
+        include: [{ association: "producto", attributes: [], where: whereProducto, required: true }],
+        order: [[col("valor"), "ASC"]],
+        raw: true
+      }),
+      Producto.findOne({
+        attributes: [
+          [fn("MIN", col("precio_venta")), "precio_min"],
+          [fn("MAX", col("precio_venta")), "precio_max"]
+        ],
+        where: whereProducto,
+        raw: true
+      })
+    ]);
+
+    // MIN/MAX de un DECIMAL llegan como texto, y como null si no hay productos
+    const toNumberOrNull = (value) => (value === null || value === undefined ? null : Number(value));
+
+    res.status(200).json({
+      marcas: marcas.map((fila) => fila.valor),
+      tallas: tallas.map((fila) => fila.valor).sort(compareSizes),
+      colores: colores.map((fila) => fila.valor),
+      precio_min: toNumberOrNull(precios?.precio_min),
+      precio_max: toNumberOrNull(precios?.precio_max)
+    });
+  } catch (error) {
+    console.error("getFilters:", error);
+    res.status(500).json({ message: "Error al obtener los filtros del catálogo." });
+  }
+};
+
 // Listar productos: una tarjeta por producto, con filtros y paginación
 exports.findAll = async (req, res) => {
   try {
