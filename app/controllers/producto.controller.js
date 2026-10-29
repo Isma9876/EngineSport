@@ -2,7 +2,7 @@
 const db = require("../models");
 const Producto = db.productos;
 const Variante = db.variantes;
-const { Op } = db.Sequelize;
+const { Op, fn, col, where: sqlWhere } = db.Sequelize;
 const { registrarStockInicial } = require("../services/inventario.service.js");
 
 // Postgres: 23001 (restrict_violation) y 23503 (foreign_key_violation) llegan a veces sin el nombre de error de Sequelize
@@ -171,6 +171,10 @@ const parsePositiveInt = (value, fallback) => {
 // Para buscar texto con iLike sin que % y _ del usuario actúen como comodines
 const escapeLike = (value) => String(value).trim().replace(/[\\%_]/g, "\\$&");
 
+// Quita tildes y pasa a minúsculas, para búsquedas que ignoran acentos
+const normalizarTexto = (value) =>
+  String(value).trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 // Estado de una variante según su stock
 const getEstado = (stock, stockMinimo) => {
   if (stock <= 0) return "agotado";
@@ -238,7 +242,13 @@ exports.findAll = async (req, res) => {
       where.marca = { [Op.iLike]: escapeLike(marca) };
     }
     if (q !== undefined && String(q).trim() !== "") {
-      where.nombre = { [Op.iLike]: `%${escapeLike(q)}%` };
+      const patron = `%${escapeLike(normalizarTexto(q))}%`;
+      where[Op.and] = [
+        sqlWhere(
+          fn("translate", fn("lower", col(`${Producto.name}.nombre`)), "áéíóúüñ", "aeiouun"),
+          { [Op.like]: patron }
+        )
+      ];
     }
 
     if (precio_min !== undefined || precio_max !== undefined) {
