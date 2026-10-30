@@ -11,6 +11,8 @@ const esErrorFK = (error) =>
   ["23001", "23503"].includes(error.parent?.code) ||
   ["23001", "23503"].includes(error.original?.code);
 
+const GENEROS = ["hombre", "mujer", "unisex"];
+
 // Quita espacios sobrantes; si queda vacío devuelve null
 const cleanText = (value) => {
   if (value === undefined || value === null) return null;
@@ -21,7 +23,7 @@ const cleanText = (value) => {
 // Crear un nuevo producto junto con sus variantes
 exports.create = async (req, res) => {
   try {
-    const { nombre, descripcion, marca, precio_costo, precio_venta, id_categoria, id_proveedor, variantes } = req.body;
+    const { nombre, descripcion, marca, precio_costo, precio_venta, id_categoria, id_proveedor, variantes, genero } = req.body;
 
     // 1. Campos obligatorios
     const nombreLimpio = cleanText(nombre);
@@ -44,6 +46,12 @@ exports.create = async (req, res) => {
     // 4. El precio de venta debe ser mayor al precio de costo
     if (Number(precio_venta) <= Number(precio_costo)) {
       return res.status(400).json({ message: "El precio_venta debe ser mayor que el precio_costo." });
+    }
+
+    // 4b. Género: si no lo mandan, 'unisex'
+    const generoFinal = genero === undefined ? "unisex" : genero;
+    if (!GENEROS.includes(generoFinal)) {
+      return res.status(400).json({ message: `genero debe ser uno de: ${GENEROS.join(", ")}.` });
     }
 
     // 5. Si mandan id_categoria, debe existir
@@ -119,6 +127,7 @@ exports.create = async (req, res) => {
           marca: cleanText(marca),
           precio_costo,
           precio_venta,
+          genero: generoFinal,
           id_categoria,
           id_proveedor
         },
@@ -244,7 +253,7 @@ exports.getFilters = async (req, res) => {
     const whereProducto = esEmpleado ? {} : { activo: true };
     const whereVariante = esEmpleado ? {} : { activo: true };
 
-    const [marcas, tallas, colores, precios] = await Promise.all([
+    const [marcas, tallas, colores, precios, generos] = await Promise.all([
       Producto.findAll({
         attributes: [[fn("DISTINCT", col("marca")), "valor"]],
         where: { ...whereProducto, ...notBlank("marca") },
@@ -271,6 +280,11 @@ exports.getFilters = async (req, res) => {
         ],
         where: whereProducto,
         raw: true
+      }),
+      Producto.findAll({
+        attributes: [[fn("DISTINCT", col("genero")), "valor"]],
+        where: whereProducto,
+        raw: true
       })
     ]);
 
@@ -281,6 +295,8 @@ exports.getFilters = async (req, res) => {
       marcas: marcas.map((fila) => fila.valor),
       tallas: tallas.map((fila) => fila.valor).sort(compareSizes),
       colores: colores.map((fila) => fila.valor),
+      // Solo los géneros presentes en productos visibles, en el orden fijo hombre, mujer, unisex
+      generos: GENEROS.filter((g) => generos.some((fila) => fila.valor === g)),
       precio_min: toNumberOrNull(precios?.precio_min),
       precio_max: toNumberOrNull(precios?.precio_max)
     });
@@ -294,7 +310,7 @@ exports.getFilters = async (req, res) => {
 exports.findAll = async (req, res) => {
   try {
     const esEmpleado = req.usuario?.tipo === "empleado";
-    const { categoria, marca, q, precio_min, precio_max, talla, color, disponible, orden } = req.query;
+    const { categoria, marca, q, precio_min, precio_max, talla, color, disponible, orden, genero } = req.query;
 
     // Paginación
     const page = parsePositiveInt(req.query.page, 1);
@@ -313,9 +329,18 @@ exports.findAll = async (req, res) => {
       return res.status(400).json({ message: "disponible debe ser true o false." });
     }
 
+    if (genero !== undefined && !GENEROS.includes(genero)) {
+      return res.status(400).json({ message: `genero debe ser uno de: ${GENEROS.join(", ")}.` });
+    }
+
     // Filtros sobre el producto
     const where = {};
     if (!esEmpleado) where.activo = true;
+
+    // genero=hombre (o mujer) devuelve los de ese género Y los unisex; genero=unisex, solo los unisex
+    if (genero !== undefined) {
+      where.genero = genero === "unisex" ? "unisex" : { [Op.in]: [genero, "unisex"] };
+    }
 
     if (marca !== undefined && String(marca).trim() !== "") {
       where.marca = { [Op.iLike]: escapeLike(marca) };
@@ -406,6 +431,7 @@ exports.findAll = async (req, res) => {
         id: p.id,
         nombre: p.nombre,
         marca: p.marca,
+        genero: p.genero,
         precio_venta: p.precio_venta,
         categoria: p.categoria,
         imagen_url: conImagen ? conImagen.imagen_url : null,
@@ -464,6 +490,7 @@ exports.findOne = async (req, res) => {
       nombre: producto.nombre,
       descripcion: producto.descripcion,
       marca: producto.marca,
+      genero: producto.genero,
       precio_venta: producto.precio_venta,
       categoria: producto.categoria,
       estado: getEstadoProducto(variantes),
@@ -507,7 +534,7 @@ exports.update = async (req, res) => {
     if (id === null) {
       return res.status(400).json({ message: "El id del producto debe ser un entero positivo." });
     }
-    const { nombre, descripcion, marca, precio_costo, precio_venta, id_categoria, id_proveedor, activo } = req.body;
+    const { nombre, descripcion, marca, precio_costo, precio_venta, id_categoria, id_proveedor, activo, genero } = req.body;
     
     const productoExistente = await Producto.findByPk(id);
     if (!productoExistente) {
@@ -526,6 +553,13 @@ exports.update = async (req, res) => {
     }
     if (descripcion !== undefined) cambios.descripcion = descripcion;
     if (marca !== undefined) cambios.marca = cleanText(marca);
+
+    if (genero !== undefined) {
+      if (!GENEROS.includes(genero)) {
+        return res.status(400).json({ message: `genero debe ser uno de: ${GENEROS.join(", ")}.` });
+      }
+      cambios.genero = genero;
+    }
 
     if (activo !== undefined) {
       if (typeof activo !== "boolean") {

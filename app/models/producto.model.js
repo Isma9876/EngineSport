@@ -25,6 +25,13 @@ module.exports = (sequelize, Sequelize) => {
         type: Sequelize.BOOLEAN,
         allowNull: false,
         defaultValue: true
+      },
+      // Debe coincidir con sql/agregar_genero_productos.sql (sync() no agrega columnas a tablas existentes)
+      genero: {
+        type: Sequelize.STRING(10),
+        allowNull: false,
+        defaultValue: "unisex",
+        validate: { isIn: [["hombre", "mujer", "unisex"]] }
       }
     },
     {
