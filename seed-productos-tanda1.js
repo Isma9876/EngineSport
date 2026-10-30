@@ -65,11 +65,11 @@ const productos = [
   { numero: 18, nombre: "Traje de baño entero", categoria: "Trajes de baño", genero: "mujer", marca: "Adidas", proveedor: DD, costo: 90, venta: 169.99, colores: ["Negro", "Azul"], tallas: TALLAS_XS_L },
   { numero: 19, nombre: "Gorra deportiva", categoria: "Gorras", genero: "unisex", marca: "Nike", proveedor: AT, costo: 30, venta: 64.99, colores: ["Negro", "Blanco"], tallas: UNICA },
   { numero: 20, nombre: "Mochila deportiva", categoria: "Mochilas y bolsos", genero: "unisex", marca: "Puma", proveedor: AT, costo: 85, venta: 159.99, colores: ["Negro", "Gris"], tallas: UNICA },
-  { numero: 21, nombre: "Bolso de gimnasio", categoria: "Mochilas y bolsos", genero: "hombre", marca: "Under Armour", proveedor: AT, costo: 95, venta: 179.99, colores: ["Negro", "Rojo"], tallas: UNICA },
+  { numero: 21, nombre: "Bolso de gimnasio", categoria: "Mochilas y bolsos", genero: "unisex", marca: "Under Armour", proveedor: AT, costo: 95, venta: 179.99, colores: ["Negro", "Rojo"], tallas: UNICA },
   { numero: 22, nombre: "Gafas de natación", categoria: "Gafas y gorros de natación", genero: "unisex", marca: "Adidas", proveedor: AT, costo: 25, venta: 54.99, colores: ["Azul", "Negro"], tallas: UNICA },
   { numero: 23, nombre: "Balón de fútbol", categoria: "Fútbol", genero: "unisex", marca: "Adidas", proveedor: EP, costo: 70, venta: 129.99, colores: ["Blanco"], tallas: UNICA, stock: 15 },
-  { numero: 24, nombre: "Mancuernas de neopreno 5 kg (par)", categoria: "Gimnasio", genero: "mujer", marca: "Reebok", proveedor: EP, costo: 80, venta: 149.99, colores: ["Morado", "Gris"], tallas: UNICA, stock: 15 },
-  { numero: 25, nombre: "Balón de baloncesto", categoria: "Baloncesto", genero: "hombre", marca: "Nike", proveedor: EP, costo: 75, venta: 139.99, colores: ["Naranja"], tallas: UNICA, stock: 15 }
+  { numero: 24, nombre: "Mancuernas de neopreno 5 kg (par)", categoria: "Gimnasio", genero: "unisex", marca: "Reebok", proveedor: EP, costo: 80, venta: 149.99, colores: ["Morado", "Gris"], tallas: UNICA, stock: 15 },
+  { numero: 25, nombre: "Balón de baloncesto", categoria: "Baloncesto", genero: "unisex", marca: "Nike", proveedor: EP, costo: 75, venta: 139.99, colores: ["Naranja"], tallas: UNICA, stock: 15 }
 ];
 
 // Genera una variante por cada combinación de color y talla.
