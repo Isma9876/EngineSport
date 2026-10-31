@@ -6,6 +6,7 @@ site:
       key: documentacion
       title: Documentación
       path: documentacion
+      default: true
       children:
         - type: space
           key: enginesport-docs
