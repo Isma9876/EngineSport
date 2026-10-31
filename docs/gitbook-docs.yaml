@@ -1,0 +1,16 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: EngineSport
+  structure:
+    - type: section
+      key: documentacion
+      title: Documentación
+      path: documentacion
+      children:
+        - type: space
+          key: enginesport-docs
+          title: EngineSport
+          path: enginesport
+          default: true
+          content:
+            directory: ./
