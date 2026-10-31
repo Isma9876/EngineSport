@@ -239,7 +239,10 @@ const compareSizes = (a, b) => {
   return a.localeCompare(b);
 };
 
-// Opciones de filtro del catálogo: marcas, tallas, colores y rango de precio
+// Opciones de filtro del catálogo: marcas, tallas, colores y rango de precio.
+// Parámetros opcionales: categoria (con sus subcategorías) y genero (hombre/mujer incluyen
+// unisex). Si llegan, las opciones salen solo de los productos que se están viendo; un valor
+// inválido se ignora en lugar de fallar, para que el panel de filtros nunca quede sin opciones.
 exports.getFilters = async (req, res) => {
   try {
     const esEmpleado = req.usuario?.tipo === "empleado";
@@ -250,7 +253,17 @@ exports.getFilters = async (req, res) => {
       [Op.and]: [sqlWhere(fn("btrim", col(column)), { [Op.ne]: "" })]
     });
 
-    const whereProducto = esEmpleado ? {} : { activo: true };
+    const idCategoria = parsePositiveInt(req.query.categoria, null);
+    const genero = typeof req.query.genero === "string" ? req.query.genero.toLowerCase() : undefined;
+
+    // whereCategoria: sin el género (la lista de géneros no se recorta por género)
+    const whereCategoria = esEmpleado ? {} : { activo: true };
+    if (idCategoria !== null) whereCategoria.id_categoria = await getCategoryTreeIds(idCategoria);
+
+    const whereProducto = { ...whereCategoria };
+    if (GENEROS.includes(genero)) {
+      whereProducto.genero = genero === "unisex" ? "unisex" : { [Op.in]: [genero, "unisex"] };
+    }
     const whereVariante = esEmpleado ? {} : { activo: true };
 
     const [marcas, tallas, colores, precios, generos] = await Promise.all([
@@ -283,7 +296,7 @@ exports.getFilters = async (req, res) => {
       }),
       Producto.findAll({
         attributes: [[fn("DISTINCT", col("genero")), "valor"]],
-        where: whereProducto,
+        where: whereCategoria,
         raw: true
       })
     ]);
